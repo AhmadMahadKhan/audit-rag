@@ -1,0 +1,8 @@
+### how to run this code 
+
+install the req.txt 
+
+### for database run this  in backend folder 
+python -m scripts.init_db 
+
+python -m scripts.seed_rbac
