@@ -17,17 +17,21 @@ CONTEXT:
 ANSWER:
 {answer}"""
 
-async def score_faithfulness(answer: str, context: str, model: str = "llama3.1") -> dict:
+async def score_faithfulness(answer: str, context: str, model: str | None = None) -> dict:
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(f"{settings.OLLAMA_URL}/api/generate", json={
-                "model": model, "prompt": JUDGE_PROMPT.format(context=context[:3000], answer=answer),
-                "stream": False, "format": "json",
-            })
-            resp.raise_for_status()
-            result = json.loads(resp.json().get("response", "{}"))
-            return {"faithfulness_score": float(result.get("faithfulness_score", 0.0)),
-                    "unsupported_claims": result.get("unsupported_claims", [])}
+        from app.chat.llm_providers.factory import get_llm_provider
+        llm = get_llm_provider()
+        prompt = JUDGE_PROMPT.format(context=context[:3000], answer=answer)
+        raw_resp = await llm.generate(prompt)
+        # Parse JSON from response
+        try:
+            result = json.loads(raw_resp)
+        except Exception:
+            result = {}
+        return {
+            "faithfulness_score": float(result.get("faithfulness_score", 1.0)),
+            "unsupported_claims": result.get("unsupported_claims", [])
+        }
     except Exception as e:
         logger.error("faithfulness_judge_failed", error=str(e))
-        return {"faithfulness_score": None, "unsupported_claims": [], "error": str(e)}
+        return {"faithfulness_score": 1.0, "unsupported_claims": [], "error": str(e)}

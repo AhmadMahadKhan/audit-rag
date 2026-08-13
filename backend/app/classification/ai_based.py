@@ -21,7 +21,8 @@ class AIBasedClassifier(BaseClassifier):
     async def classify_text(self, text: str) -> ClassificationResult:
         prompt = PROMPT_TEMPLATE.format(types=", ".join(DOCUMENT_TYPES.keys()), text=text[:2000])
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            headers = {"Authorization": f"Bearer {settings.OLLAMA_API_KEY}"} if settings.OLLAMA_API_KEY else {}
+            async with httpx.AsyncClient(timeout=30.0, headers=headers) as client:
                 resp = await client.post(
                     f"{settings.OLLAMA_URL}/api/generate",
                     json={"model": self.model, "prompt": prompt, "stream": False, "format": "json"},

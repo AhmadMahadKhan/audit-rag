@@ -44,6 +44,12 @@ class RetrievalService:
         provider = get_embedding_provider()
         query_vector = (await provider.embed([rewritten]))[0]
         dense_results = await self.store.search(collection_for("text"), query_vector, top_k * 3, combined_filters)
+        
+        # Fallback to unfiltered search if filtered search returned no candidates
+        if not dense_results and combined_filters:
+            logger.info("filtered_search_empty_falling_back_to_unfiltered", query=query)
+            dense_results = await self.store.search(collection_for("text"), query_vector, top_k * 3, None)
+
         dense_ranked = [r["payload"]["chunk_id"] for r in dense_results if r["payload"].get("chunk_id")]
         dense_scores = {r["payload"]["chunk_id"]: r["score"] for r in dense_results if r["payload"].get("chunk_id")}
 

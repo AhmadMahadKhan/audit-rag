@@ -37,12 +37,27 @@ class QdrantProvider(VectorStoreProvider):
 
     
     async def search(self, collection: str, vector: list[float], top_k: int, filters: dict | None = None) -> list[dict]:
+        if not vector:
+            return []
         qdrant_filter = self._build_filter(filters) if filters else None
-        results = await self.client.query_points(
-            collection_name=collection, query=vector, limit=top_k,
-            query_filter=qdrant_filter, with_payload=True,
-        )
-        return [{"id": p.id, "score": p.score, "payload": p.payload} for p in results.points]
+        try:
+            results = await self.client.query_points(
+                collection_name=collection, query=vector, limit=top_k,
+                query_filter=qdrant_filter, with_payload=True,
+            )
+            return [{"id": p.id, "score": p.score, "payload": p.payload} for p in results.points]
+        except Exception as e:
+            logger.warning("qdrant_search_failed_ensuring_collection", collection=collection, error=str(e))
+            try:
+                await self.ensure_collection(collection, len(vector) if vector else settings.EMBEDDING_DIMENSION)
+                results = await self.client.query_points(
+                    collection_name=collection, query=vector, limit=top_k,
+                    query_filter=qdrant_filter, with_payload=True,
+                )
+                return [{"id": p.id, "score": p.score, "payload": p.payload} for p in results.points]
+            except Exception as inner_e:
+                logger.error("qdrant_search_error", collection=collection, error=str(inner_e))
+                return []
     async def delete(self, collection: str, point_ids: list[str]):
         await self.client.delete(collection_name=collection, points_selector=models.PointIdsList(points=point_ids))
 
@@ -65,10 +80,27 @@ class QdrantProvider(VectorStoreProvider):
         must = []
         for key, value in filters.items():
             if key == "date_range" and isinstance(value, dict):
-                must.append(models.FieldCondition(key="processing_timestamp",
-                    range=models.Range(gte=value.get("gte"), lte=value.get("lte"))))
+                gte_val = value.get("gte")
+                lte_val = value.get("lte")
+                
+                if isinstance(gte_val, str):
+                    try:
+                        from datetime import datetime
+                        gte_val = datetime.fromisoformat(gte_val).timestamp()
+                    except Exception:
+                        gte_val = None
+                if isinstance(lte_val, str):
+                    try:
+                        from datetime import datetime
+                        lte_val = datetime.fromisoformat(lte_val).timestamp()
+                    except Exception:
+                        lte_val = None
+
+                if gte_val is not None or lte_val is not None:
+                    must.append(models.FieldCondition(key="processing_timestamp",
+                        range=models.Range(gte=gte_val, lte=lte_val)))
             elif isinstance(value, list):
                 must.append(models.FieldCondition(key=key, match=models.MatchAny(any=value)))
-            else:
+            elif value is not None:
                 must.append(models.FieldCondition(key=key, match=models.MatchValue(value=value)))
         return models.Filter(must=must)

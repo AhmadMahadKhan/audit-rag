@@ -15,11 +15,6 @@ def extract_filters(query: str) -> dict:
             filters["document_type"] = doc_type
             break
 
-    date_match = re.search(r"\b(20\d{2})\b", query)
-    if date_match:
-        year = date_match.group(1)
-        filters["date_range"] = {"gte": f"{year}-01-01", "lte": f"{year}-12-31"}
-
     vendor_match = re.search(r"(?:from|with|to)\s+([A-Z][A-Za-z0-9&.\s]{2,30})", query)
     if vendor_match:
         filters["vendor"] = vendor_match.group(1).strip()

@@ -34,7 +34,8 @@ async def ready(db: AsyncSession = Depends(get_db)):
         checks["qdrant"] = "down"
 
     try:
-        async with httpx.AsyncClient(timeout=2.0) as client:
+        headers = {"Authorization": f"Bearer {settings.OLLAMA_API_KEY}"} if settings.OLLAMA_API_KEY else {}
+        async with httpx.AsyncClient(timeout=2.0, headers=headers) as client:
             resp = await client.get(f"{settings.OLLAMA_URL}/api/tags")
             checks["llm_provider"] = "up" if resp.status_code < 500 else "degraded"
     except Exception:

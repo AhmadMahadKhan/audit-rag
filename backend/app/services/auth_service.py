@@ -44,7 +44,14 @@ class AuthService:
         self.db.add(RefreshToken(user_id=user.id, token=refresh_token, expires_at=expires_at))
         await self.db.commit()
 
-        return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"}
+        user_data = {
+            "id": user.id,
+            "email": user.email,
+            "full_name": user.full_name,
+            "roles": roles,
+            "permissions": permissions,
+        }
+        return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer", "user": user_data}
 
     async def refresh(self, refresh_token: str) -> dict:
         from sqlalchemy import select

@@ -11,14 +11,14 @@ query, nothing else.
 
 Question: {query}"""
 
-async def rewrite_query(query: str, model: str = "llama3.1") -> str:
+async def rewrite_query(query: str, model: str | None = None) -> str:
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.post(f"{settings.OLLAMA_URL}/api/generate",
-                json={"model": model, "prompt": PROMPT.format(query=query), "stream": False})
-            resp.raise_for_status()
-            rewritten = resp.json().get("response", "").strip()
-            return rewritten if rewritten else query
+        from app.chat.llm_providers.factory import get_llm_provider
+        llm = get_llm_provider()
+        prompt = PROMPT.format(query=query)
+        rewritten = await llm.generate(prompt)
+        cleaned = rewritten.strip() if rewritten else query
+        return cleaned if cleaned else query
     except Exception as e:
         logger.warning("query_rewrite_failed", error=str(e))
         return query

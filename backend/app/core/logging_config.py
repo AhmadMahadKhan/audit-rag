@@ -8,6 +8,10 @@ from app.observability.redaction import redact_dict
 def redaction_processor(logger, method_name, event_dict):
     return redact_dict(event_dict)
 
+import os
+
+os.makedirs("logs", exist_ok=True)
+
 logging.basicConfig(level=logging.INFO, format="%(message)s",
                      handlers=[logging.StreamHandler(sys.stdout), logging.FileHandler("logs/app.log")])
 

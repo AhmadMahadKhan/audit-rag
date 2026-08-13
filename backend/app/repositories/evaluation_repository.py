@@ -9,12 +9,26 @@ class EvaluationRepository:
         self.db = db
 
     async def create_dataset(self, ds: EvalDataset) -> EvalDataset:
-        self.db.add(ds); await self.db.commit(); await self.db.refresh(ds)
+        self.db.add(ds)
+        await self.db.commit()
+        await self.db.refresh(ds)
+
+        default_cases = [
+            EvalCase(dataset_id=ds.id, query="What are the primary compliance policies?", expected_answer="Primary policies govern data access, financial reporting, and security.", scenario="factual"),
+            EvalCase(dataset_id=ds.id, query="Are there high-severity findings?", expected_answer="High-severity findings are tracked in the compliance finding log.", scenario="audit"),
+        ]
+        for case in default_cases:
+            self.db.add(case)
+        await self.db.commit()
         return ds
 
     async def get_dataset(self, dataset_id: str) -> EvalDataset | None:
         result = await self.db.execute(select(EvalDataset).where(EvalDataset.id == dataset_id))
         return result.scalar_one_or_none()
+
+    async def list_datasets(self) -> list[EvalDataset]:
+        result = await self.db.execute(select(EvalDataset).order_by(EvalDataset.created_at.desc()))
+        return list(result.scalars().all())
 
     async def add_case(self, case: EvalCase) -> EvalCase:
         self.db.add(case); await self.db.commit(); await self.db.refresh(case)
@@ -34,6 +48,10 @@ class EvaluationRepository:
     async def get_run(self, run_id: str) -> EvalRun | None:
         result = await self.db.execute(select(EvalRun).where(EvalRun.id == run_id))
         return result.scalar_one_or_none()
+
+    async def list_runs(self, limit: int = 20) -> list[EvalRun]:
+        result = await self.db.execute(select(EvalRun).order_by(EvalRun.created_at.desc()).limit(limit))
+        return list(result.scalars().all())
 
     async def get_run_case_results(self, run_id: str) -> list[EvalCaseResult]:
         result = await self.db.execute(select(EvalCaseResult).where(EvalCaseResult.run_id == run_id))

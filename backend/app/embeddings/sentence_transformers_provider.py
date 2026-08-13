@@ -6,11 +6,11 @@ from app.embeddings.base import BaseEmbeddingProvider
 class SentenceTransformersProvider(BaseEmbeddingProvider):
     name = "sentence_transformers"
 
-    def __init__(self, model_name: str = "BAAI/bge-small-en-v1.5"):
+    def __init__(self, model_name: str = "BAAI/bge-base-en-v1.5"):
         from sentence_transformers import SentenceTransformer
         self._model = SentenceTransformer(model_name)
         self.model_version = model_name
-        self.dimension = self._model.get_sentence_embedding_dimension()
+        self.dimension = getattr(self._model, "get_embedding_dimension", getattr(self._model, "get_sentence_embedding_dimension", lambda: 768))()
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         import asyncio

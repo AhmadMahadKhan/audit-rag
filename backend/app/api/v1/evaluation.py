@@ -13,6 +13,10 @@ from app.schemas.evaluation import (
 
 router = APIRouter(prefix="/evaluation", tags=["evaluation"])
 
+@router.get("/datasets", response_model=list[EvalDatasetOut])
+async def list_datasets(db: AsyncSession = Depends(get_db), _=Depends(require_permission("analytics.read"))):
+    return await EvaluationRepository(db).list_datasets()
+
 @router.post("/datasets", response_model=EvalDatasetOut)
 async def create_dataset(name: str, description: str | None = None, db: AsyncSession = Depends(get_db), _=Depends(require_permission("settings.manage"))):
     return await EvaluationRepository(db).create_dataset(EvalDataset(name=name, description=description))
@@ -25,6 +29,10 @@ async def add_case(dataset_id: str, payload: EvalCaseCreate, db: AsyncSession = 
 @router.post("/datasets/{dataset_id}/run", response_model=EvalRunOut)
 async def run_evaluation(dataset_id: str, payload: RunEvaluationRequest, db: AsyncSession = Depends(get_db), _=Depends(require_permission("settings.manage"))):
     return await EvaluationService(db).run_evaluation(dataset_id, payload.config_snapshot, payload.generate_answers)
+
+@router.get("/runs", response_model=list[EvalRunOut])
+async def list_runs(db: AsyncSession = Depends(get_db), _=Depends(require_permission("analytics.read"))):
+    return await EvaluationRepository(db).list_runs()
 
 @router.get("/runs/{run_id}", response_model=EvalRunOut)
 async def get_run(run_id: str, db: AsyncSession = Depends(get_db), _=Depends(require_permission("analytics.read"))):

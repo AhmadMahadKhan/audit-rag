@@ -9,12 +9,12 @@ class Settings(BaseSettings):
     debug: bool = True
     log_level: str = "INFO"
     SECRET_KEY: str = "change-me-in-prod"
-    QDRANT_URL: str = "http://qdrant:6333"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     MAX_FAILED_LOGIN_ATTEMPTS: int = 5
     LOCKOUT_MINUTES: int = 15
     STORAGE_PROVIDER: str = "local"
     STORAGE_LOCAL_PATH: str = "./storage"
+    REDIS_URL: str = "redis://localhost:6379/0"
     MAX_UPLOAD_SIZE_MB: int = 50
     ALLOWED_EXTENSIONS: str = "pdf,docx,xlsx,pptx,csv,html,txt,md,png,jpg,jpeg,tiff,bmp,eml"
     DUPLICATE_POLICY: str = "reject"  # reject | replace | version | keep_both
@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     RERANK_MIN_SCORE: float = 0.0
     RERANK_DIVERSITY_THRESHOLD: float = 0.92  # cosine sim above this = near-duplicate
     LLM_PROVIDER: str = "ollama"
-    LLM_MODEL: str = "llama3.1"
+    LLM_MODEL: str = "gpt-oss:20b"
     LLM_MAX_CONTEXT_TOKENS: int = 4096
     LLM_RESPONSE_RESERVE_TOKENS: int = 800
     CHAT_CONFIDENCE_THRESHOLD: float = 0.4
@@ -51,7 +51,8 @@ class Settings(BaseSettings):
     EMBEDDING_COST_PER_1K: float = 0.0
 
     OLLAMA_URL: str = "http://127.0.0.1:11434"
-    QDRANT_URL: str = "http://qdrant:6333"
+    OLLAMA_API_KEY: str | None = None
+    OPENAI_API_KEY: str | None = None
 
 
 

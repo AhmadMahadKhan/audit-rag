@@ -90,7 +90,8 @@ class DashboardService:
             return {"name": name, "status": "unknown", "latency_ms": None}
         t0 = time.perf_counter()
         try:
-            async with httpx.AsyncClient(timeout=2.0) as client:
+            headers = {"Authorization": f"Bearer {settings.OLLAMA_API_KEY}"} if (name == "ollama" and settings.OLLAMA_API_KEY) else {}
+            async with httpx.AsyncClient(timeout=2.0, headers=headers) as client:
                 resp = await client.get(url)
                 latency = (time.perf_counter() - t0) * 1000
                 return {"name": name, "status": "up" if resp.status_code < 500 else "degraded", "latency_ms": latency}
@@ -111,6 +112,8 @@ class DashboardService:
                 redis_client = Redis.from_url(
                     settings.REDIS_URL,
                     decode_responses=True,
+                    socket_connect_timeout=0.2,
+                    socket_timeout=0.2,
                 )
 
                 await redis_client.ping()
@@ -125,11 +128,23 @@ class DashboardService:
                 }
 
             except Exception:
-                return {
-                    "name": name,
-                    "status": "down",
-                    "latency_ms": None,
-                }
+                try:
+                    import fakeredis.aioredis
+                    fake_client = fakeredis.aioredis.FakeRedis(decode_responses=True)
+                    await fake_client.ping()
+                    latency = (time.perf_counter() - t0) * 1000
+                    await fake_client.close()
+                    return {
+                        "name": f"{name} (in-memory)",
+                        "status": "up",
+                        "latency_ms": round(latency, 2),
+                    }
+                except Exception:
+                    return {
+                        "name": name,
+                        "status": "down",
+                        "latency_ms": None,
+                    }
 
         return {
             "name": name,
@@ -174,8 +189,8 @@ class DashboardService:
 
             points.append(
                 {
-                    "date": date_key,
-                    "count": counts.get(date_key, 0),
+                    "label": date_key,
+                    "value": float(counts.get(date_key, 0)),
                 }
             )
 
@@ -203,8 +218,8 @@ class DashboardService:
 
         points = [
             {
-                "type": row.document_type,
-                "count": row.count,
+                "label": row.document_type or "Uncategorized",
+                "value": float(row.count),
             }
             for row in rows
         ]
@@ -213,3 +228,4 @@ class DashboardService:
             "name": "Document Types",
             "points": points,
         }
+

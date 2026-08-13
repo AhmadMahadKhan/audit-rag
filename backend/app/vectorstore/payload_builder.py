@@ -12,7 +12,7 @@ def build_payload(embedding_record, document, chunk=None, metadata_fields=None) 
         "model_name": embedding_record.model_name,
         "model_version": embedding_record.model_version,
         "embedding_version": embedding_record.model_version,
-        "processing_timestamp": datetime.now(timezone.utc).isoformat(),
+        "processing_timestamp": datetime.now(timezone.utc).timestamp(),
     }
     if chunk:
         payload.update({
