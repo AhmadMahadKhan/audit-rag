@@ -9,6 +9,10 @@ class Settings(BaseSettings):
     debug: bool = True
     log_level: str = "INFO"
     SECRET_KEY: str = "change-me-in-prod"
+
+
+    
+
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     MAX_FAILED_LOGIN_ATTEMPTS: int = 5
     LOCKOUT_MINUTES: int = 15
@@ -25,7 +29,7 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "nomic-embed-text"
     EMBEDDING_DIMENSION: int = 768
     EMBEDDING_BATCH_SIZE: int = 16
-    QDRANT_URL: str = "http://qdrant:6333"
+    QDRANT_URL: str = "http://localhost:6333"
     QDRANT_API_KEY: str | None = None
     RERANKER_PROVIDER: str = "sentence_transformers"
     RERANKER_MODEL: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
@@ -53,6 +57,9 @@ class Settings(BaseSettings):
     OLLAMA_URL: str = "http://127.0.0.1:11434"
     OLLAMA_API_KEY: str | None = None
     OPENAI_API_KEY: str | None = None
+
+    
+
 
 
 
