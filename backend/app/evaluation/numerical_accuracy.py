@@ -17,7 +17,7 @@ def numerical_accuracy(answer: str, ground_truth_facts: dict | list | None, tole
     mismatches = []
 
     if not ground_truth_facts:
-        return {"numerical_accuracy": 1.0, "mismatches": []}
+        return {"numerical_accuracy": None, "mismatches": []}
 
     if isinstance(ground_truth_facts, dict):
         items = list(ground_truth_facts.items())
@@ -46,5 +46,5 @@ def numerical_accuracy(answer: str, ground_truth_facts: dict | list | None, tole
         else:
             mismatches.append({"fact_type": fact_type, "expected": raw_expected})
 
-    accuracy = (matched / total) if total > 0 else 1.0
+    accuracy = (matched / total) if total > 0 else None
     return {"numerical_accuracy": accuracy, "mismatches": mismatches}

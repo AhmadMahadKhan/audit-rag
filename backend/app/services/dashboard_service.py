@@ -80,7 +80,8 @@ class DashboardService:
         # Qdrant Vector Database
         t_qdrant = time.perf_counter()
         try:
-            async with httpx.AsyncClient(timeout=1.0) as client:
+            headers = {"api-key": settings.QDRANT_API_KEY} if settings.QDRANT_API_KEY else {}
+            async with httpx.AsyncClient(timeout=1.0, headers=headers) as client:
                 resp = await client.get(f"{settings.QDRANT_URL}/healthz")
                 if resp.status_code < 500:
                     services.append({"name": "qdrant", "status": "up", "latency_ms": (time.perf_counter() - t_qdrant) * 1000})

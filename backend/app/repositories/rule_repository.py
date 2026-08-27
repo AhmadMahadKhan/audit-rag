@@ -1,5 +1,4 @@
-# ===== app/repositories/rule_repository.py =====
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.rule_engine import RuleDefinition, RuleFinding, RuleExecutionRun, RuleAuditLog
 
@@ -26,6 +25,9 @@ class RuleRepository:
         return definition
 
     async def save_findings(self, findings: list[RuleFinding]):
+        if findings:
+            doc_id = findings[0].document_id
+            await self.db.execute(delete(RuleFinding).where(RuleFinding.document_id == doc_id))
         for f in findings:
             self.db.add(f)
         await self.db.commit()

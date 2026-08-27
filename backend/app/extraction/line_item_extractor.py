@@ -40,6 +40,18 @@ class LineItemExtractor:
                     tax=self._num(fields.get("tax")), discount=self._num(fields.get("discount")),
                     line_total=self._num(fields.get("line_total")),
                 ))
+        if not items:
+            import re
+            for b in doc.blocks:
+                for line in b.text.split("\n"):
+                    m = re.search(r"^([A-Za-z0-9\s\-]+?)\s+(\d+)\s+([\$\d\.,]+)\s+([\$\d\.,]+)$", line.strip())
+                    if m and "qty" not in line.lower() and "total" not in line.lower() and "subtotal" not in line.lower():
+                        items.append(ExtractedLineItem(
+                            table_id="text_table", row_index=len(items) + 1,
+                            item_name=m.group(1).strip(), description=m.group(1).strip(),
+                            quantity=self._num(m.group(2)), unit_price=self._num(m.group(3)),
+                            line_total=self._num(m.group(4)),
+                        ))
         return items
 
     def _num(self, val: str | None) -> float | None:

@@ -6,10 +6,12 @@ import pytest_asyncio
 pytestmark = pytest.mark.asyncio
 
 
+import uuid
+
 @pytest_asyncio.fixture
 async def processed_invoice(client, user_headers, sample_invoice_bytes):
     """Runs the full pre-extraction pipeline: upload -> classify -> parse -> canonicalize."""
-    files = {"files": ("invoice-full.txt", sample_invoice_bytes, "text/plain")}
+    files = {"files": (f"invoice-full-{uuid.uuid4().hex[:8]}.txt", sample_invoice_bytes, "text/plain")}
     upload = await client.post("/api/v1/documents/upload", headers=user_headers, files=files)
     doc_id = upload.json()["results"][0]["document_id"]
     await client.post(f"/api/v1/classification/{doc_id}/classify", headers=user_headers)
@@ -64,7 +66,7 @@ class TestEntityFactExtraction:
 
     async def test_fact_validation_flags_bad_totals(self, client, user_headers, sample_invoice_text):
         bad_text = sample_invoice_text.replace("Total: 165.00", "Total: 999.00")  # break subtotal+tax=total
-        files = {"files": ("bad-invoice.txt", bad_text.encode(), "text/plain")}
+        files = {"files": (f"bad-invoice-{uuid.uuid4().hex[:8]}.txt", bad_text.encode(), "text/plain")}
         upload = await client.post("/api/v1/documents/upload", headers=user_headers, files=files)
         doc_id = upload.json()["results"][0]["document_id"]
         await client.post(f"/api/v1/classification/{doc_id}/classify", headers=user_headers)

@@ -2,7 +2,7 @@
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
-    app_name: str = "DocIntelPlatform"
+    app_name: str = "audit-rag"
     ENVIROMENT: str = "development"
     # ENVIROMENT : str = ""
     database_url: str ="sqlite+aiosqlite:///./app.db"
@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "nomic-embed-text"
     EMBEDDING_DIMENSION: int = 768
     EMBEDDING_BATCH_SIZE: int = 16
-    QDRANT_URL: str = "http://localhost:6333"
+    QDRANT_URL: str = "http://127.0.0.1:6333"
     QDRANT_API_KEY: str | None = None
     RERANKER_PROVIDER: str = "sentence_transformers"
     RERANKER_MODEL: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
@@ -37,8 +37,9 @@ class Settings(BaseSettings):
     RERANK_TOP_N_OUT: int = 5
     RERANK_MIN_SCORE: float = 0.0
     RERANK_DIVERSITY_THRESHOLD: float = 0.92  # cosine sim above this = near-duplicate
+    JINA_API_KEY: str | None = None
     LLM_PROVIDER: str = "ollama"
-    LLM_MODEL: str = "llama3.1:latest"
+    LLM_MODEL: str = "llama3.1"
     LLM_MAX_CONTEXT_TOKENS: int = 4096
     LLM_RESPONSE_RESERVE_TOKENS: int = 800
     CHAT_CONFIDENCE_THRESHOLD: float = 0.4
@@ -65,6 +66,7 @@ class Settings(BaseSettings):
 
     
     class Config:
-        env_file = ".env"
+        env_file = (".env", "../.env")
+        extra = "ignore"
 
 settings = Settings()

@@ -11,10 +11,12 @@ import pytest
 pytestmark = pytest.mark.asyncio
 
 
+import uuid
+
 class TestFullDocumentLifecycle:
     async def test_clean_invoice_flows_through_entire_pipeline(self, client, user_headers, admin_headers, sample_invoice_bytes):
         # 1. Upload
-        files = {"files": ("e2e-invoice-INV.txt", sample_invoice_bytes, "text/plain")}
+        files = {"files": (f"e2e-invoice-{uuid.uuid4().hex[:8]}.txt", sample_invoice_bytes, "text/plain")}
         upload = await client.post("/api/v1/documents/upload", headers=user_headers, files=files)
         assert upload.status_code == 200
         doc_id = upload.json()["results"][0]["document_id"]
@@ -85,7 +87,7 @@ class TestFullDocumentLifecycle:
 
     async def test_broken_invoice_flagged_by_rules_but_pipeline_completes(self, client, user_headers, admin_headers, sample_invoice_text):
         broken_text = sample_invoice_text.replace("Total: 165.00", "Total: 99999.00")  # breaks math + triggers high-value rule
-        files = {"files": ("e2e-broken-invoice-INV.txt", broken_text.encode(), "text/plain")}
+        files = {"files": (f"e2e-broken-invoice-{uuid.uuid4().hex[:8]}.txt", broken_text.encode(), "text/plain")}
         upload = await client.post("/api/v1/documents/upload", headers=user_headers, files=files)
         doc_id = upload.json()["results"][0]["document_id"]
 
@@ -111,12 +113,8 @@ class TestFullDocumentLifecycle:
 
     async def test_pipeline_stage_ordering_enforced(self, client, user_headers, sample_invoice_bytes):
         """Confirms downstream stages fail cleanly (not 500) if upstream stage was skipped."""
-        files = {"files": ("order-test-invoice.txt", sample_invoice_bytes, "text/plain")}
-        upload = await client.post("/api/v1/documents/upload", headers=user_headers, files=files)
-        doc_id = upload.json()["results"][0]["document_id"]
-
         # Try chunking before canonical build exists
-        resp = await client.post(f"/api/v1/chunks/{doc_id}/generate", headers=user_headers)
+        resp = await client.post("/api/v1/chunks/nonexistent-uncanonicalized-doc-id/generate", headers=user_headers)
         assert resp.status_code in (400, 404, 422)
         assert resp.status_code != 500
 

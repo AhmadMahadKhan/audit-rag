@@ -19,4 +19,9 @@ def extract_filters(query: str) -> dict:
     if vendor_match:
         filters["vendor"] = vendor_match.group(1).strip()
 
+    year_match = re.search(r"\b(20\d{2}|19\d{2})\b", query)
+    if year_match:
+        year = year_match.group(1)
+        filters["date_range"] = {"gte": f"{year}-01-01", "lte": f"{year}-12-31"}
+
     return filters

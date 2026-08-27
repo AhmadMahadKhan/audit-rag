@@ -1,0 +1,15 @@
+INVOICE
+Invoice No: INV-2026-0042
+Vendor: Acme Supplies Inc
+Bill To: Contoso Corp
+Invoice Date: 07/28/2026
+Due Date: 08/28/2026
+
+Item          Qty   Unit Price   Total
+Widget A      10    5.00         50.00
+Widget B      5     20.00        100.00
+
+Subtotal: 150.00
+Tax: 15.00
+Total: 999.00
+Currency: USD

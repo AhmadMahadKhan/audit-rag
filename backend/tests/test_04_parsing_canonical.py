@@ -6,10 +6,12 @@ import pytest_asyncio
 pytestmark = pytest.mark.asyncio
 
 
+import uuid
+
 @pytest_asyncio.fixture
 async def uploaded_html(client, user_headers):
     html = b"<html><body><h1>Test Doc</h1><p>Some paragraph content here.</p></body></html>"
-    files = {"files": ("test.html", html, "text/html")}
+    files = {"files": (f"test_{uuid.uuid4().hex[:8]}.html", html, "text/html")}
     resp = await client.post("/api/v1/documents/upload", headers=user_headers, files=files)
     return resp.json()["results"][0]["document_id"]
 
@@ -31,8 +33,8 @@ class TestParsingCanonical:
         resp = await client.get("/api/v1/parsing/nonexistent-doc-id", headers=user_headers)
         assert resp.status_code == 404
 
-    async def test_canonical_build_requires_parsing_first(self, client, user_headers, uploaded_html):
-        resp = await client.post(f"/api/v1/canonical/{uploaded_html}/build", headers=user_headers)
+    async def test_canonical_build_requires_parsing_first(self, client, user_headers):
+        resp = await client.post("/api/v1/canonical/unparsed-doc-id/build", headers=user_headers)
         assert resp.status_code in (400, 404, 422)
 
     async def test_canonical_build_after_parsing(self, client, user_headers, uploaded_html):

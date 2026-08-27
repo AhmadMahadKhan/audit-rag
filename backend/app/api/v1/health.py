@@ -27,7 +27,8 @@ async def ready(db: AsyncSession = Depends(get_db)):
         checks["database"] = f"down: {e}"
 
     try:
-        async with httpx.AsyncClient(timeout=2.0) as client:
+        headers = {"api-key": settings.QDRANT_API_KEY} if settings.QDRANT_API_KEY else {}
+        async with httpx.AsyncClient(timeout=2.0, headers=headers) as client:
             resp = await client.get(f"{settings.QDRANT_URL}/healthz")
             checks["qdrant"] = "up" if resp.status_code < 500 else "degraded"
     except Exception:

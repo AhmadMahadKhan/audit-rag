@@ -12,10 +12,15 @@ from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.pool import StaticPool
 
-os.environ.setdefault("ENVIROMENT", "test")
-os.environ.setdefault("SECRET_KEY", "test-secret-key")
-os.environ.setdefault("STORAGE_LOCAL_PATH", "./test_storage")
-os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+os.environ["ENVIROMENT"] = "test"
+os.environ["SECRET_KEY"] = "test-secret-key"
+os.environ["STORAGE_LOCAL_PATH"] = "./test_storage"
+os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
+
+from app.core.config import settings
+settings.database_url = "sqlite+aiosqlite:///:memory:"
+settings.ENVIROMENT = "test"
+settings.SECRET_KEY = "test-secret-key"
 from datetime import date, timedelta
 
 from app.main import app
