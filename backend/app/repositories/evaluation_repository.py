@@ -36,7 +36,23 @@ class EvaluationRepository:
 
     async def get_cases(self, dataset_id: str) -> list[EvalCase]:
         result = await self.db.execute(select(EvalCase).where(EvalCase.dataset_id == dataset_id))
-        return result.scalars().all()
+        return list(result.scalars().all())
+
+    async def get_dataset_documents(self, dataset_id: str):
+        from app.models.document import Document
+        dataset = await self.get_dataset(dataset_id)
+        doc_ids = set(dataset.document_ids) if dataset and dataset.document_ids else set()
+        
+        cases = await self.get_cases(dataset_id)
+        for c in cases:
+            if c.relevant_document_ids:
+                doc_ids.update(c.relevant_document_ids)
+        
+        if doc_ids:
+            result = await self.db.execute(select(Document).where(Document.id.in_(list(doc_ids))))
+            return list(result.scalars().all())
+        else:
+            return []
 
     async def create_run(self, run: EvalRun) -> EvalRun:
         self.db.add(run); await self.db.commit(); await self.db.refresh(run)

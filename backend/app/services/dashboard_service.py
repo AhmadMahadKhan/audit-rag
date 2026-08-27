@@ -76,8 +76,25 @@ class DashboardService:
 
         # Redis
         services.append(await self._check_http_like("redis"))
-        # Qdrant
-        services.append(await self._check_url("qdrant", f"{settings.QDRANT_URL}/healthz" if hasattr(settings, "QDRANT_URL") else None))
+        
+        # Qdrant Vector Database
+        t_qdrant = time.perf_counter()
+        try:
+            async with httpx.AsyncClient(timeout=1.0) as client:
+                resp = await client.get(f"{settings.QDRANT_URL}/healthz")
+                if resp.status_code < 500:
+                    services.append({"name": "qdrant", "status": "up", "latency_ms": (time.perf_counter() - t_qdrant) * 1000})
+                else:
+                    raise Exception("Remote Qdrant degraded")
+        except Exception:
+            try:
+                from app.vectorstore.qdrant_provider import QdrantProvider
+                qp = QdrantProvider()
+                await qp.list_collections()
+                services.append({"name": "qdrant (in-memory)", "status": "up", "latency_ms": round((time.perf_counter() - t_qdrant) * 1000, 2)})
+            except Exception:
+                services.append({"name": "qdrant", "status": "down", "latency_ms": None})
+
         # Ollama
         services.append(await self._check_url("ollama", f"{settings.OLLAMA_URL}/api/tags"))
 

@@ -28,3 +28,8 @@ export const deleteConversation = async (conversationId) => {
   const res = await client.delete(`/chat/conversations/${conversationId}`);
   return res.data;
 };
+
+export const regenerateMessage = async (messageId) => {
+  const res = await client.post(`/chat/messages/${messageId}/regenerate`);
+  return res.data;
+};

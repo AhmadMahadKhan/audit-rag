@@ -12,6 +12,27 @@ export const addEvalCase = async (datasetId, caseData) => {
   return res.data;
 };
 
+export const getDatasetCases = async (datasetId) => {
+  const res = await client.get(`/evaluation/datasets/${datasetId}/cases`);
+  return res.data;
+};
+
+export const getDatasetDocuments = async (datasetId) => {
+  const res = await client.get(`/evaluation/datasets/${datasetId}/documents`);
+  return res.data;
+};
+
+export const uploadDatasetDocuments = async (datasetId, files) => {
+  const formData = new FormData();
+  files.forEach((file) => {
+    formData.append('files', file);
+  });
+  const res = await client.post(`/evaluation/datasets/${datasetId}/upload-documents`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return res.data;
+};
+
 export const runEvaluation = async (datasetId, configSnapshot = {}, generateAnswers = true) => {
   const res = await client.post(`/evaluation/datasets/${datasetId}/run`, {
     config_snapshot: configSnapshot,
@@ -22,6 +43,11 @@ export const runEvaluation = async (datasetId, configSnapshot = {}, generateAnsw
 
 export const getEvalRunDetails = async (runId) => {
   const res = await client.get(`/evaluation/runs/${runId}`);
+  return res.data;
+};
+
+export const getEvalCaseResults = async (runId) => {
+  const res = await client.get(`/evaluation/runs/${runId}/case-results`);
   return res.data;
 };
 

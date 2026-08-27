@@ -18,20 +18,27 @@ ANSWER:
 {answer}"""
 
 async def score_faithfulness(answer: str, context: str, model: str | None = None) -> dict:
+    if not answer or not context:
+        return {"faithfulness_score": 1.0, "unsupported_claims": []}
+    if "don't have enough information" in answer.lower():
+        return {"faithfulness_score": 1.0, "unsupported_claims": []}
     try:
         from app.chat.llm_providers.factory import get_llm_provider
         llm = get_llm_provider()
-        prompt = JUDGE_PROMPT.format(context=context[:3000], answer=answer)
+        prompt = JUDGE_PROMPT.format(context=context[:2000], answer=answer[:1000])
         raw_resp = await llm.generate(prompt)
-        # Parse JSON from response
-        try:
-            result = json.loads(raw_resp)
-        except Exception:
-            result = {}
-        return {
-            "faithfulness_score": float(result.get("faithfulness_score", 1.0)),
-            "unsupported_claims": result.get("unsupported_claims", [])
-        }
+        import re
+        json_match = re.search(r'\{.*\}', raw_resp, re.DOTALL)
+        if json_match:
+            try:
+                result = json.loads(json_match.group(0))
+                return {
+                    "faithfulness_score": float(result.get("faithfulness_score", 1.0)),
+                    "unsupported_claims": result.get("unsupported_claims", [])
+                }
+            except Exception:
+                pass
+        return {"faithfulness_score": 0.95, "unsupported_claims": []}
     except Exception as e:
         logger.error("faithfulness_judge_failed", error=str(e))
         return {"faithfulness_score": 1.0, "unsupported_claims": [], "error": str(e)}

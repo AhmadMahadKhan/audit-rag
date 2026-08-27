@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     RERANK_MIN_SCORE: float = 0.0
     RERANK_DIVERSITY_THRESHOLD: float = 0.92  # cosine sim above this = near-duplicate
     LLM_PROVIDER: str = "ollama"
-    LLM_MODEL: str = "gpt-oss:20b"
+    LLM_MODEL: str = "llama3.1:latest"
     LLM_MAX_CONTEXT_TOKENS: int = 4096
     LLM_RESPONSE_RESERVE_TOKENS: int = 800
     CHAT_CONFIDENCE_THRESHOLD: float = 0.4

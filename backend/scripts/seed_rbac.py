@@ -17,7 +17,17 @@ ROLE_PERMS = {
 }
 
 async def seed():
+    from app.db.session import engine, Base
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
     async with AsyncSessionLocal() as db:
+        from sqlalchemy import select
+        res = await db.execute(select(User).where(User.email == "admin@example.com"))
+        if res.scalar_one_or_none():
+            print("Admin user already seeded (admin@example.com / Admin123!)")
+            return
+
         perm_objs = {code: Permission(code=code) for code in PERMISSIONS}
         for p in perm_objs.values():
             db.add(p)

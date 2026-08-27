@@ -8,6 +8,7 @@ class EvalDataset(BaseModel):
     name: Mapped[str] = mapped_column(String, unique=True)
     description: Mapped[str] = mapped_column(String, nullable=True)
     version: Mapped[int] = mapped_column(Integer, default=1)
+    document_ids: Mapped[list] = mapped_column(JSON, default=list)
 
 class EvalCase(BaseModel):
     __tablename__ = "eval_cases"

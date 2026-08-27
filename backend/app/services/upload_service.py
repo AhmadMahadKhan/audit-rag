@@ -17,7 +17,7 @@ class UploadService:
         self.validator = FileValidator()
         self.storage = get_storage_backend()
 
-    async def upload_one(self, filename: str, content: bytes, user_id: str) -> Document:
+    async def upload_one(self, filename: str, content: bytes, user_id: str, skip_vector_index: bool = False) -> Document:
         try:
             safe_name = self.validator.sanitize_filename(filename)
             mime_type = self.validator.validate(filename, content)
@@ -27,7 +27,6 @@ class UploadService:
             if existing:
                 if settings.DUPLICATE_POLICY == "reject":
                     raise DuplicateDocument(f"Duplicate of document {existing.id}")
-                # replace/version/keep_both left as extension points
 
             ext = safe_name.rsplit(".", 1)[-1].lower()
             storage_filename = f"{uuid.uuid4()}.{ext}"
@@ -47,8 +46,8 @@ class UploadService:
             await log_activity(self.db, "document_uploaded", user_id=user_id,
                                 related_document_id=document.id, detail=safe_name)
 
-            # Auto-run end-to-end ingestion pipeline (classify -> parse -> canonical -> metadata -> extraction -> rules -> chunking -> embedding -> Qdrant vector indexing)
-            await self.run_ingestion_pipeline(document.id)
+            # Auto-run end-to-end ingestion pipeline (classify -> parse -> canonical -> metadata -> extraction -> rules -> chunking)
+            await self.run_ingestion_pipeline(document.id, skip_vector_index=skip_vector_index)
             return document
 
         except (InvalidDocument, DuplicateDocument) as e:
@@ -58,7 +57,7 @@ class UploadService:
             logger.error("upload_failed", filename=filename, error=str(e))
             raise
 
-    async def run_ingestion_pipeline(self, document_id: str):
+    async def run_ingestion_pipeline(self, document_id: str, skip_vector_index: bool = False):
         from app.services.classification_service import ClassificationService
         from app.services.parsing_service import ParsingService
         from app.services.canonical_service import CanonicalService
@@ -78,16 +77,17 @@ class UploadService:
             await RuleEngineService(self.db).evaluate_document(document_id)
             await ChunkingService(self.db).chunk_document(document_id)
             await EmbeddingService(self.db).generate_embeddings(document_id, types=["text"])
-            await IndexingService(self.db).index_document(document_id)
-            logger.info("ingestion_pipeline_completed", document_id=document_id)
+            if not skip_vector_index:
+                await IndexingService(self.db).index_document(document_id)
+            logger.info("ingestion_pipeline_completed", document_id=document_id, skipped_vector_index=skip_vector_index)
         except Exception as e:
             logger.error("ingestion_pipeline_failed", document_id=document_id, error=str(e))
 
-    async def upload_batch(self, files: list[tuple[str, bytes]], user_id: str) -> list[dict]:
+    async def upload_batch(self, files: list[tuple[str, bytes]], user_id: str, skip_vector_index: bool = False) -> list[dict]:
         results = []
         for filename, content in files:
             try:
-                doc = await self.upload_one(filename, content, user_id)
+                doc = await self.upload_one(filename, content, user_id, skip_vector_index=skip_vector_index)
                 results.append({"filename": filename, "document_id": doc.id, "status": doc.status, "error": None})
             except Exception as e:
                 results.append({"filename": filename, "document_id": None, "status": "failed", "error": str(e)})

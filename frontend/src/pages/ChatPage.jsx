@@ -3,12 +3,14 @@ import Card from '../components/common/Card';
 import Badge from '../components/common/Badge';
 import Spinner from '../components/common/Spinner';
 import Toast from '../components/common/Toast';
+import DocumentViewerModal from '../components/documents/DocumentViewerModal';
 import { 
   listConversations, 
   createConversation, 
   getConversationMessages, 
   sendMessage, 
-  deleteConversation 
+  deleteConversation,
+  regenerateMessage
 } from '../api/chat';
 import { 
   MessageSquare, 
@@ -20,7 +22,8 @@ import {
   FileText, 
   RefreshCw, 
   Sparkles,
-  ChevronRight
+  ChevronRight,
+  Eye
 } from 'lucide-react';
 
 export const ChatPage = () => {
@@ -32,6 +35,8 @@ export const ChatPage = () => {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
   const [toasts, setToasts] = useState([]);
+  const [selectedDocId, setSelectedDocId] = useState(null);
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
   const messagesEndRef = useRef(null);
 
   const addToast = (message, type = 'info') => {
@@ -208,7 +213,8 @@ export const ChatPage = () => {
               onChange={(e) => setProvider(e.target.value)}
               style={{ width: 'auto', padding: '4px 8px', fontSize: '0.8125rem' }}
             >
-              <option value="ollama">Ollama (Cloud)</option>
+              <option value="ollama">Ollama (Local Models)</option>
+              <option value="openai">OpenAI (Cloud API)</option>
             </select>
           </div>
         </div>
@@ -269,9 +275,25 @@ export const ChatPage = () => {
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           {msg.citations.map((cit, cIdx) => (
-                            <div key={cIdx} style={{ fontSize: '0.75rem', padding: '4px 8px', backgroundColor: 'var(--bg-card)', borderRadius: '4px', display: 'flex', justifyContent: 'space-between' }}>
-                              <span>{cit.document_title || cit.document_id}</span>
-                              <span style={{ color: 'var(--text-muted)' }}>Page {cit.page}</span>
+                            <div 
+                              key={cIdx} 
+                              onClick={() => cit.document_id && (setSelectedDocId(cit.document_id), setIsViewerOpen(true))}
+                              style={{ 
+                                fontSize: '0.75rem', 
+                                padding: '6px 10px', 
+                                backgroundColor: 'var(--bg-card)', 
+                                borderRadius: '4px', 
+                                display: 'flex', 
+                                justifyContent: 'space-between',
+                                cursor: 'pointer',
+                                border: '1px solid var(--border-subtle)'
+                              }}
+                            >
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <Eye size={12} style={{ color: 'var(--primary)' }} />
+                                <strong>{cit.document_title || cit.document_id}</strong>
+                              </span>
+                              <span style={{ color: 'var(--text-muted)' }}>Page {cit.page || 1}</span>
                             </div>
                           ))}
                         </div>
@@ -330,6 +352,12 @@ export const ChatPage = () => {
           </div>
         </form>
       </Card>
+
+      <DocumentViewerModal
+        documentId={selectedDocId}
+        isOpen={isViewerOpen}
+        onClose={() => setIsViewerOpen(false)}
+      />
 
       <Toast toasts={toasts} onDismiss={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
     </div>

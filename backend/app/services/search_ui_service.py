@@ -26,11 +26,34 @@ class SearchUIService:
         if mode == "hybrid":
             rerank_result = await self.reranking.retrieve_and_rerank(query, top_n=top_k, filters=filters, user_id=user_id)
             raw_results = rerank_result["results"]
+        elif mode in ("bm25", "keyword"):
+            # Fast BM25 keyword search over DB chunks
+            from app.models.chunk import Chunk
+            recent_chunks = await self.doc_repo.db.execute(
+                __import__("sqlalchemy").select(Chunk).limit(100)
+            )
+            chunks = recent_chunks.scalars().all()
+            if not chunks:
+                raw_results = []
+            else:
+                from app.retrieval.bm25_index import BM25Index
+                bm25 = BM25Index([c.id for c in chunks], [c.content for c in chunks])
+                scored_ids = bm25.search(query, top_k)
+                chunk_map = {c.id: c for c in chunks}
+                raw_results = []
+                for cid, score in scored_ids:
+                    c = chunk_map.get(cid)
+                    if c:
+                        raw_results.append({
+                            "chunk_id": c.id,
+                            "document_id": c.document_id,
+                            "content": c.content,
+                            "pages": c.pages,
+                            "section_name": c.section_name,
+                            "fused_score": score
+                        })
         elif mode == "semantic":
-            raw_results = await self.retrieval.semantic_search(query, top_k, filters)
-            raw_results = [{"chunk_id": r["chunk_id"], "document_id": r["payload"].get("document_id"),
-                            "content": r["payload"].get("content", ""), "pages": r["payload"].get("pages", []),
-                            "section_name": r["payload"].get("section_name"), "fused_score": r["score"]} for r in raw_results]
+            raw_results = await self.retrieval.hybrid_search(query, top_k, filters, user_id=user_id)
         elif mode == "entity":
             entities = await self.knowledge_repo.search_entities(None, query, limit=top_k)
             return [{"document_id": e.document_id, "entity_type": e.entity_type, "value": e.value,

@@ -53,9 +53,22 @@ class RetrievalService:
         dense_ranked = [r["payload"]["chunk_id"] for r in dense_results if r["payload"].get("chunk_id")]
         dense_scores = {r["payload"]["chunk_id"]: r["score"] for r in dense_results if r["payload"].get("chunk_id")}
 
-        # --- Sparse retrieval (BM25 over the same candidate pool for scale) ---
+        # --- Sparse retrieval (BM25 over candidate pool or DB fallback) ---
         candidate_chunk_ids = dense_ranked
         candidate_chunks = [c for c in await self._get_chunks(candidate_chunk_ids)]
+
+        # Fallback to SQLite DB chunks if dense vector search returned no candidates
+        if not candidate_chunks:
+            logger.info("dense_retrieval_empty_falling_back_to_db_chunks", query=query)
+            target_doc = combined_filters.get("document_id")
+            if target_doc:
+                candidate_chunks = await self.chunk_repo.get_for_document(target_doc)
+            else:
+                candidate_chunks = await self._get_all_recent_chunks()
+
+        if not candidate_chunks:
+            return []
+
         bm25 = BM25Index([c.id for c in candidate_chunks], [c.content for c in candidate_chunks])
         bm25_variants_scores = {}
         for variant in expand_query(query)[:3]:  # cap expansion fanout
@@ -64,7 +77,7 @@ class RetrievalService:
         sparse_ranked = sorted(bm25_variants_scores, key=bm25_variants_scores.get, reverse=True)
 
         # --- Fusion ---
-        fused = reciprocal_rank_fusion([dense_ranked, sparse_ranked])
+        fused = reciprocal_rank_fusion([dense_ranked, sparse_ranked]) if dense_ranked else {cid: bm25_variants_scores.get(cid, 1.0) for cid in sparse_ranked[:top_k]}
         top_ids = sorted(fused, key=fused.get, reverse=True)[:top_k]
 
         # --- Context assembly ---
@@ -110,3 +123,9 @@ class RetrievalService:
             return []
         result = await self.db.execute(select(Chunk).where(Chunk.id.in_(chunk_ids)))
         return result.scalars().all()
+
+    async def _get_all_recent_chunks(self, limit: int = 200):
+        from sqlalchemy import select
+        from app.models.chunk import Chunk
+        result = await self.db.execute(select(Chunk).order_by(Chunk.chunk_index).limit(limit))
+        return list(result.scalars().all())

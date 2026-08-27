@@ -3,6 +3,7 @@ import Card from '../components/common/Card';
 import Badge from '../components/common/Badge';
 import Spinner from '../components/common/Spinner';
 import Toast from '../components/common/Toast';
+import DocumentViewerModal from '../components/documents/DocumentViewerModal';
 import { 
   performSearch, 
   getSearchSuggestions, 
@@ -12,7 +13,7 @@ import {
   runSavedSearch,
   deleteSavedSearch 
 } from '../api/search';
-import { Search, Bookmark, History, Sparkles, Filter, FileText, ArrowRight, Trash2 } from 'lucide-react';
+import { Search, Bookmark, History, Sparkles, Filter, FileText, ArrowRight, Trash2, Eye } from 'lucide-react';
 
 export const SearchPage = () => {
   const [query, setQuery] = useState('');
@@ -24,6 +25,8 @@ export const SearchPage = () => {
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toasts, setToasts] = useState([]);
+  const [selectedDocId, setSelectedDocId] = useState(null);
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
 
   const addToast = (message, type = 'info') => {
     const id = Date.now();
@@ -233,17 +236,30 @@ export const SearchPage = () => {
             results.map((res, idx) => (
               <Card key={idx}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div 
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                    onClick={() => res.document_id && (setSelectedDocId(res.document_id), setIsViewerOpen(true))}
+                  >
                     <FileText size={18} style={{ color: 'var(--primary)' }} />
                     <span style={{ fontWeight: 600, fontSize: '0.9375rem', color: 'var(--text-primary)' }}>
                       {res.document_title || res.document_id}
                     </span>
                   </div>
-                  {res.final_score && (
-                    <Badge variant="success">
-                      {(res.final_score * 100).toFixed(1)}% Match
-                    </Badge>
-                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {res.final_score && (
+                      <Badge variant="success">
+                        {(res.final_score * 100).toFixed(1)}% Match
+                      </Badge>
+                    )}
+                    <button 
+                      className="btn btn-secondary" 
+                      onClick={() => res.document_id && (setSelectedDocId(res.document_id), setIsViewerOpen(true))}
+                      style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                    >
+                      <Eye size={12} />
+                      <span>Inspect</span>
+                    </button>
+                  </div>
                 </div>
 
                 <p style={{ fontSize: '0.875rem', lineHeight: 1.6, color: 'var(--text-secondary)', marginBottom: '12px', backgroundColor: 'var(--bg-surface)', padding: '12px', borderRadius: 'var(--radius-sm)' }}>
@@ -267,6 +283,12 @@ export const SearchPage = () => {
           )}
         </div>
       </div>
+
+      <DocumentViewerModal
+        documentId={selectedDocId}
+        isOpen={isViewerOpen}
+        onClose={() => setIsViewerOpen(false)}
+      />
 
       <Toast toasts={toasts} onDismiss={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
     </div>

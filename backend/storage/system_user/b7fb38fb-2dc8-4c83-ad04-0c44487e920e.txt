@@ -1,0 +1,8 @@
+
+        INTERNAL AUDIT POLICY 2025
+        Section 1: Security Compliance
+        All server logs must be retained for 365 days. Access logs must be reviewed bi-weekly by the Chief Information Security Officer (CISO).
+        
+        Section 2: High Severity Thresholds
+        Any unauthorized data access exceeding 100 records is automatically categorized as a High Severity Incident.
+        

@@ -92,13 +92,13 @@ export const DocumentViewerModal = ({ documentId, isOpen, onClose }) => {
               <FileText size={20} style={{ color: 'var(--primary)' }} />
               <div>
                 <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>Classification: </span>
-                <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                  {bundle.classification?.primary_category || 'Unclassified'}
+                <span style={{ fontWeight: 600, color: 'var(--text-primary)', textTransform: 'capitalize' }}>
+                  {bundle.classification?.document_type || bundle.document?.document_type || 'Unclassified'}
                 </span>
               </div>
             </div>
             <Badge variant="success">
-              {bundle.embedding_status?.vector_store || 'Vectorized'}
+              {bundle.embedding_status?.total > 0 ? `${bundle.embedding_status.total} Vectorized` : 'Indexed'}
             </Badge>
           </div>
 
@@ -109,19 +109,30 @@ export const DocumentViewerModal = ({ documentId, isOpen, onClose }) => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div style={{ padding: '16px', backgroundColor: 'var(--bg-surface)', borderRadius: 'var(--radius-md)' }}>
                 <h4 style={{ fontSize: '0.875rem', marginBottom: '8px', color: 'var(--primary)' }}>Executive Summary</h4>
-                <p style={{ fontSize: '0.875rem', lineHeight: 1.6 }}>{bundle.canonical_summary?.summary}</p>
+                <p style={{ fontSize: '0.875rem', lineHeight: 1.6 }}>
+                  {bundle.canonical_summary?.summary || bundle.document?.filename || 'Canonical structure extracted and vectorized.'}
+                </p>
+                {bundle.canonical_summary?.validation_status && (
+                  <div style={{ marginTop: '8px', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Validation Status: <strong>{bundle.canonical_summary.validation_status}</strong>
+                  </div>
+                )}
               </div>
 
               <div>
                 <h4 style={{ fontSize: '0.875rem', marginBottom: '10px' }}>Key Metadata</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
-                  {bundle.metadata?.map((meta, idx) => (
-                    <div key={idx} style={{ padding: '10px 12px', backgroundColor: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>{meta.key}</span>
-                      <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>{meta.value}</span>
-                    </div>
-                  ))}
-                </div>
+                {bundle.metadata && bundle.metadata.length > 0 ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+                    {bundle.metadata.map((meta, idx) => (
+                      <div key={idx} style={{ padding: '10px 12px', backgroundColor: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>{meta.key}</span>
+                        <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>{meta.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>No key metadata tags extracted.</p>
+                )}
               </div>
             </div>
           )}
@@ -131,40 +142,67 @@ export const DocumentViewerModal = ({ documentId, isOpen, onClose }) => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
                 <h4 style={{ fontSize: '0.875rem', marginBottom: '10px' }}>Named Entities</h4>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                  {bundle.entities?.map((ent, idx) => (
-                    <span key={idx} style={{ padding: '6px 12px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', fontSize: '0.8125rem' }}>
-                      <strong>{ent.name}</strong> <span style={{ color: 'var(--text-muted)' }}>({ent.type})</span>
-                    </span>
-                  ))}
-                </div>
+                {bundle.entities && bundle.entities.length > 0 ? (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    {bundle.entities.map((ent, idx) => (
+                      <span key={idx} style={{ padding: '6px 12px', borderRadius: 'var(--radius-full)', backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', fontSize: '0.8125rem' }}>
+                        <strong>{ent.value || ent.name}</strong> <span style={{ color: 'var(--text-muted)' }}>({ent.type})</span>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>No entities found.</p>
+                )}
               </div>
 
               <div>
                 <h4 style={{ fontSize: '0.875rem', marginBottom: '10px' }}>Extracted Facts</h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {bundle.facts?.map((fact, idx) => (
-                    <div key={idx} style={{ padding: '10px 14px', backgroundColor: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', fontSize: '0.875rem' }}>
-                      "{fact.statement}"
-                    </div>
-                  ))}
-                </div>
+                {bundle.facts && bundle.facts.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {bundle.facts.map((fact, idx) => (
+                      <div key={idx} style={{ padding: '10px 14px', backgroundColor: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', fontSize: '0.875rem' }}>
+                        "{fact.value || fact.statement}"
+                        {fact.note && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>{fact.note}</div>}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>No extracted facts recorded.</p>
+                )}
               </div>
+
+              {bundle.line_items && bundle.line_items.length > 0 && (
+                <div>
+                  <h4 style={{ fontSize: '0.875rem', marginBottom: '10px' }}>Extracted Line Items</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {bundle.line_items.map((li, idx) => (
+                      <div key={idx} style={{ padding: '8px 12px', backgroundColor: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', fontSize: '0.8125rem' }}>
+                        <span><strong>{li.item}</strong> (x{li.qty || 1})</span>
+                        <span style={{ fontFamily: 'var(--font-mono)' }}>${li.total || (li.qty * li.unit_price) || 0}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {/* Tab 3: Chunks */}
           {activeTab === 'chunks' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {bundle.chunks?.map((chk, idx) => (
-                <div key={idx} style={{ padding: '12px 14px', backgroundColor: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    <span>Page {chk.page} • Chunk ID: {chk.id}</span>
-                    <span>{chk.embedding_dimensions}d vector</span>
+              {bundle.chunks && bundle.chunks.length > 0 ? (
+                bundle.chunks.map((chk, idx) => (
+                  <div key={idx} style={{ padding: '12px 14px', backgroundColor: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      <span>Page {chk.pages ? chk.pages.join(', ') : '1'} • Chunk ID: {chk.id}</span>
+                      <span>Section: {chk.section || 'General'}</span>
+                    </div>
+                    <p style={{ fontSize: '0.8125rem', fontFamily: 'var(--font-sans)', color: 'var(--text-primary)' }}>{chk.text || chk.content}</p>
                   </div>
-                  <p style={{ fontSize: '0.8125rem', fontFamily: 'var(--font-sans)', color: 'var(--text-primary)' }}>{chk.text}</p>
-                </div>
-              ))}
+                ))
+              ) : (
+                <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>No vector chunks found for this document.</p>
+              )}
             </div>
           )}
 

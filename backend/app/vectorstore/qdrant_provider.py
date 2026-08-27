@@ -1,5 +1,6 @@
 
 # ===== app/vectorstore/qdrant_provider.py =====
+import asyncio
 from qdrant_client import AsyncQdrantClient, models
 from app.vectorstore.base import VectorStoreProvider
 from app.core.config import settings
@@ -7,25 +8,33 @@ from app.core.logging_config import logger
 
 class QdrantProvider(VectorStoreProvider):
     def __init__(self):
-        self.client = AsyncQdrantClient(url=settings.QDRANT_URL, api_key=getattr(settings, "QDRANT_API_KEY", None))
+        try:
+            self.client = AsyncQdrantClient(url=settings.QDRANT_URL, api_key=getattr(settings, "QDRANT_API_KEY", None), timeout=2.0)
+        except Exception:
+            self.client = AsyncQdrantClient(":memory:")
 
     async def ensure_collection(self, name: str, dimension: int):
-        exists = await self.client.collection_exists(name)
-        if not exists:
-            await self.client.create_collection(
-                collection_name=name,
-                vectors_config=models.VectorParams(size=dimension, distance=models.Distance.COSINE),
-            )
-            # payload indexes for common filter fields — speeds up filtered search
-            for field, schema in [
-                ("document_id", models.PayloadSchemaType.KEYWORD),
-                ("document_type", models.PayloadSchemaType.KEYWORD),
-                ("embedding_type", models.PayloadSchemaType.KEYWORD),
-                ("language", models.PayloadSchemaType.KEYWORD),
-                ("embedding_version", models.PayloadSchemaType.KEYWORD),
-            ]:
-                await self.client.create_payload_index(name, field_name=field, field_schema=schema)
-            logger.info("qdrant_collection_created", name=name, dimension=dimension)
+        try:
+            exists = await self.client.collection_exists(name)
+            if not exists:
+                await self.client.create_collection(
+                    collection_name=name,
+                    vectors_config=models.VectorParams(size=dimension, distance=models.Distance.COSINE),
+                )
+                for field, schema in [
+                    ("document_id", models.PayloadSchemaType.KEYWORD),
+                    ("document_type", models.PayloadSchemaType.KEYWORD),
+                    ("embedding_type", models.PayloadSchemaType.KEYWORD),
+                    ("language", models.PayloadSchemaType.KEYWORD),
+                    ("embedding_version", models.PayloadSchemaType.KEYWORD),
+                ]:
+                    try:
+                        await self.client.create_payload_index(name, field_name=field, field_schema=schema)
+                    except Exception:
+                        pass
+                logger.info("qdrant_collection_created", name=name, dimension=dimension)
+        except Exception as e:
+            logger.warning("qdrant_ensure_collection_failed", collection=name, error=str(e))
 
     async def upsert(self, collection: str, points: list[dict]):
         qdrant_points = [
@@ -33,33 +42,34 @@ class QdrantProvider(VectorStoreProvider):
             for p in points if p.get("vector")
         ]
         if qdrant_points:
-            await self.client.upsert(collection_name=collection, points=qdrant_points)
+            try:
+                await self.ensure_collection(collection, len(points[0]["vector"]))
+                await self.client.upsert(collection_name=collection, points=qdrant_points)
+            except Exception as e:
+                logger.warning("qdrant_upsert_failed", collection=collection, error=str(e))
 
-    
     async def search(self, collection: str, vector: list[float], top_k: int, filters: dict | None = None) -> list[dict]:
         if not vector:
             return []
         qdrant_filter = self._build_filter(filters) if filters else None
         try:
-            results = await self.client.query_points(
-                collection_name=collection, query=vector, limit=top_k,
-                query_filter=qdrant_filter, with_payload=True,
+            results = await asyncio.wait_for(
+                self.client.query_points(
+                    collection_name=collection, query=vector, limit=top_k,
+                    query_filter=qdrant_filter, with_payload=True,
+                ),
+                timeout=2.0
             )
             return [{"id": p.id, "score": p.score, "payload": p.payload} for p in results.points]
         except Exception as e:
-            logger.warning("qdrant_search_failed_ensuring_collection", collection=collection, error=str(e))
-            try:
-                await self.ensure_collection(collection, len(vector) if vector else settings.EMBEDDING_DIMENSION)
-                results = await self.client.query_points(
-                    collection_name=collection, query=vector, limit=top_k,
-                    query_filter=qdrant_filter, with_payload=True,
-                )
-                return [{"id": p.id, "score": p.score, "payload": p.payload} for p in results.points]
-            except Exception as inner_e:
-                logger.error("qdrant_search_error", collection=collection, error=str(inner_e))
-                return []
+            logger.warning("qdrant_search_failed", collection=collection, error=str(e))
+            return []
+
     async def delete(self, collection: str, point_ids: list[str]):
-        await self.client.delete(collection_name=collection, points_selector=models.PointIdsList(points=point_ids))
+        try:
+            await self.client.delete(collection_name=collection, points_selector=models.PointIdsList(points=point_ids))
+        except Exception as e:
+            logger.warning("qdrant_delete_failed", collection=collection, error=str(e))
 
     async def get_collection_stats(self, collection: str) -> dict:
         try:
@@ -67,14 +77,21 @@ class QdrantProvider(VectorStoreProvider):
             return {"vectors_count": info.vectors_count or 0, "points_count": info.points_count or 0,
                     "status": str(info.status), "segments_count": info.segments_count}
         except Exception:
-            return {"vectors_count": 0, "points_count": 0, "status": "not_found", "segments_count": 0}
+            return {"vectors_count": 0, "points_count": 0, "status": "offline_fallback", "segments_count": 0}
 
     async def list_collections(self) -> list[str]:
-        result = await self.client.get_collections()
-        return [c.name for c in result.collections]
+        try:
+            result = await self.client.get_collections()
+            return [c.name for c in result.collections]
+        except Exception as e:
+            logger.warning("qdrant_list_collections_failed", error=str(e))
+            return []
 
     async def delete_collection(self, name: str):
-        await self.client.delete_collection(name)
+        try:
+            await self.client.delete_collection(name)
+        except Exception as e:
+            logger.warning("qdrant_delete_collection_failed", collection=name, error=str(e))
 
     def _build_filter(self, filters: dict) -> models.Filter:
         must = []
