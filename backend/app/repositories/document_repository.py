@@ -31,3 +31,21 @@ class DocumentRepository:
     async def delete(self, document: Document):
         await self.db.delete(document)
         await self.db.commit()
+    async def get_by_filename(self, filename: str, user_id: str | None = None) -> Document | None:
+        """Resolves a filename mentioned in a query to a Document.
+        Scoped to user_id when provided, since filenames are not
+        globally unique. Case-insensitive exact match on original_filename.
+
+        NOTE: if multiple documents match (same user re-uploaded the same
+        filename), this returns the most recently created one rather than
+        silently picking an arbitrary row or failing closed. This is a
+        product-level default, not a hidden guess — call sites should be
+        aware duplicate filenames resolve to "latest" and surface that
+        ambiguity to the user if it matters for their use case.
+        """
+        stmt = select(Document).where(Document.original_filename.ilike(filename))
+        if user_id is not None:
+            stmt = stmt.where(Document.user_id == user_id)
+        stmt = stmt.order_by(Document.created_at.desc())
+        result = await self.db.execute(stmt)
+        return result.scalars().first()

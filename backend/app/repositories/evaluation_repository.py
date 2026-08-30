@@ -29,7 +29,9 @@ class EvaluationRepository:
     async def list_datasets(self) -> list[EvalDataset]:
         result = await self.db.execute(select(EvalDataset).order_by(EvalDataset.created_at.desc()))
         return list(result.scalars().all())
-
+    async def list_datasets(self) -> list[EvalDataset]:
+        result = await self.db.execute(select(EvalDataset))
+        return result.scalars().all()
     async def add_case(self, case: EvalCase) -> EvalCase:
         self.db.add(case); await self.db.commit(); await self.db.refresh(case)
         return case

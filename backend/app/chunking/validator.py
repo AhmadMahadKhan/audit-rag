@@ -3,7 +3,7 @@
 from app.chunking.schema import ChunkCandidate
 from app.chunking.token_utils import estimate_tokens
 
-MAX_TOKENS = 1000
+MAX_TOKENS = 2000
 MIN_CHARS = 10
 
 def validate_chunk(chunk: ChunkCandidate) -> tuple[str, str | None]:

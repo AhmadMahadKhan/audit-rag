@@ -9,6 +9,7 @@ def build_payload(embedding_record, document, chunk=None, metadata_fields=None) 
         "chunk_id": embedding_record.chunk_id,
         "embedding_type": embedding_record.embedding_type,
         "document_type": document.document_type,
+        "filename": document.original_filename,   # <-- ADD
         "model_name": embedding_record.model_name,
         "model_version": embedding_record.model_version,
         "embedding_version": embedding_record.model_version,

@@ -25,7 +25,10 @@ EXTENSION_MAP = {
 }
 
 def get_parser(extension: str):
-    parser_cls = EXTENSION_MAP.get(extension.lower())
+
+    extension = extension.lower().lstrip('.')
+
+    parser_cls = EXTENSION_MAP.get(extension)
     if not parser_cls:
         raise InvalidDocument(f"No parser registered for .{extension}")
     return parser_cls()

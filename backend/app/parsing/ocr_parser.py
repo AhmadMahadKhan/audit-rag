@@ -12,25 +12,95 @@ class OCRParser:
         self.lang = lang
         self.min_confidence = getattr(settings, "OCR_MIN_CONFIDENCE", 40)
 
-    async def extract_from_image_bytes(self, image_bytes: bytes, page_num: int, start_order: int) -> tuple[list[Block], str]:
-        image = Image.open(io.BytesIO(image_bytes))
-        data = pytesseract.image_to_data(image, lang=self.lang, output_type=pytesseract.Output.DICT)
+    
+    async def extract_from_image_bytes(
+        self,
+        image_bytes: bytes,
+        page_num: int,
+        start_order: int = 0,
+    ) -> tuple[list[Block], str, float]:
 
-        blocks, texts = [], []
+        image = Image.open(
+            io.BytesIO(image_bytes)
+        )
+
+        image = image.convert("RGB")
+
+        data = pytesseract.image_to_data(
+            image,
+            lang=self.lang,
+            output_type=pytesseract.Output.DICT,
+        )
+
+        blocks = []
+        texts = []
+
+        confidences = []
+
         order = start_order
+
         n = len(data["text"])
-        i = 0
-        while i < n:
+
+        for i in range(n):
+
             word = data["text"][i].strip()
-            conf = int(data["conf"][i]) if data["conf"][i] != "-1" else -1
-            if word and conf >= self.min_confidence:
-                blocks.append(Block(
-                    block_id=f"ocr_p{page_num}_b{order}", type="paragraph", text=word, page=page_num, order=order,
-                    bbox=BoundingBox(page=page_num, x=data["left"][i], y=data["top"][i],
-                                      width=data["width"][i], height=data["height"][i], confidence=conf / 100),
-                    confidence=conf / 100,
-                ))
+
+            try:
+                conf = float(data["conf"][i])
+            except (TypeError, ValueError):
+                conf = -1
+
+            if not word:
+                continue
+
+            if conf < 0:
+                continue
+
+            confidences.append(conf)
+
+            
+            
+            # The FINAL decision whether Tesseract is good enough
+            # is made using the average confidence.
+            if conf >= 10:
+
+                blocks.append(
+                    Block(
+                        block_id=(
+                            f"ocr_p{page_num}_b{order}"
+                        ),
+                        type="paragraph",
+                        text=word,
+                        page=page_num,
+                        order=order,
+                        bbox=BoundingBox(
+                            page=page_num,
+                            x=data["left"][i],
+                            y=data["top"][i],
+                            width=data["width"][i],
+                            height=data["height"][i],
+                            confidence=conf / 100,
+                        ),
+                        confidence=conf / 100,
+                    )
+                )
+
                 texts.append(word)
+
                 order += 1
-            i += 1
-        return blocks, " ".join(texts)
+
+        if confidences:
+            average_confidence = (
+                sum(confidences) /
+                len(confidences)
+            )
+        else:
+            average_confidence = 0.0
+
+        extracted_text = " ".join(texts)
+
+        return (
+            blocks,
+            extracted_text,
+            average_confidence,
+        )

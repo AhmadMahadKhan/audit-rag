@@ -14,6 +14,8 @@ export const Layout = () => {
     '/rules': 'Compliance Rule Engine',
     '/evaluation': 'RAG Quality Benchmark',
     '/monitoring': 'System Analytics & Cost Monitoring',
+    '/audit' :'Audit',
+    '/admin/users': 'User Management',
   };
 
   const currentTitle = titleMap[location.pathname] || 'Audit RAG Platform';

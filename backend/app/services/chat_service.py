@@ -14,14 +14,30 @@ from app.services.activity_logger import log_activity
 from app.core.config import settings
 from app.core.exceptions import DocumentNotFound, AuthorizationError
 from app.core.logging_config import logger
+from app.chat.document_context import load_full_documents_context
 
+SCRATCHPAD_UPDATE_PROMPT = """You are maintaining brief working notes for this
+conversation about the selected document(s). Below are your current notes
+and the latest question/answer. Update the notes: add anything newly learned
+that's worth remembering for later questions in this same conversation, keep
+anything still relevant, drop anything now redundant. Keep it under 150 words.
+Do not invent facts not present in what you were given.
+
+Current notes:
+{current_notes}
+
+Latest question: {question}
+Latest answer: {answer}
+
+Updated notes (450 words max):"""
 class ChatService:
     def __init__(self, db):
         self.db = db
         self.repo = ChatRepository(db)
         self.reranking = RerankingService(db)
 
-    async def _prepare_turn(self, conversation_id: str, question: str, user_id: str, filters: dict | None):
+
+    async def _prepare_turn(self, conversation_id, question, user_id, filters, document_ids=None):
         conversation = await self.repo.get_conversation(conversation_id)
         if not conversation:
             raise DocumentNotFound("Conversation not found")
@@ -31,21 +47,31 @@ class ChatService:
         history_msgs = await self.repo.get_messages(conversation_id)
         history = [{"role": m.role, "content": m.content} for m in history_msgs]
 
-        rerank_result = await self.reranking.retrieve_and_rerank(question, filters=filters, user_id=user_id)
-        context_chunks = rerank_result["results"]
+        budget = settings.LLM_MAX_CONTEXT_TOKENS - settings.LLM_RESPONSE_RESERVE_TOKENS - 500
 
-        budgeted_context = fit_context_to_budget(
-            context_chunks, settings.LLM_MAX_CONTEXT_TOKENS - settings.LLM_RESPONSE_RESERVE_TOKENS - 500,
-        )
+        if document_ids:
+            context_chunks = await load_full_documents_context(self.db, document_ids, budget)
+        else:
+            rerank_result = await self.reranking.retrieve_and_rerank(question, filters=filters, user_id=user_id)
+            context_chunks = rerank_result["results"]
+
+        budgeted_context = fit_context_to_budget(context_chunks, budget)
         budgeted_history = trim_history(history, 500)
+
+        # Fold scratchpad notes into the prompt as extra context, if present.
+        scratchpad = getattr(conversation, "scratchpad_notes", None)
+        if scratchpad:
+            budgeted_history = budgeted_history + [{"role": "system", "content": f"Working notes so far: {scratchpad}"}]
 
         prompt = build_prompt(question, budgeted_context, budgeted_history)
         return conversation, prompt, budgeted_context
 
-    async def send_message(self, conversation_id: str, question: str, user_id: str,
-                             filters: dict | None = None, provider_name: str | None = None) -> Message:
+    async def send_message(self, conversation_id, question, user_id, filters=None,
+                             document_ids: list[str] | None = None, provider_name=None):
         t0 = time.perf_counter()
-        conversation, prompt, context_chunks = await self._prepare_turn(conversation_id, question, user_id, filters)
+        conversation, prompt, context_chunks = await self._prepare_turn(
+            conversation_id, question, user_id, filters, document_ids,
+        )
 
         self.db.add(Message(conversation_id=conversation_id, role="user", content=question))
         await self.db.commit()
@@ -63,6 +89,9 @@ class ChatService:
         )
         assistant_msg = await self.repo.add_message(assistant_msg)
 
+        if document_ids:
+            await self._update_scratchpad(conversation, question, response_text)
+
         if conversation.title == "New Conversation":
             conversation.title = question[:60]
         await self.db.commit()
@@ -71,6 +100,13 @@ class ChatService:
                      confidence=confidence, latency_ms=(time.perf_counter() - t0) * 1000)
         await log_activity(self.db, "ai_chat_request", user_id=user_id, status=status)
         return assistant_msg
+
+    async def _update_scratchpad(self, conversation, question, answer):
+        llm = get_llm_provider()
+        current_notes = getattr(conversation, "scratchpad_notes", "") or "(none yet)"
+        prompt = SCRATCHPAD_UPDATE_PROMPT.format(current_notes=current_notes, question=question, answer=answer)
+        updated = await llm.generate(prompt)
+        conversation.scratchpad_notes = updated.strip()
 
     async def stream_message(self, conversation_id: str, question: str, user_id: str,
                                filters: dict | None = None, provider_name: str | None = None) -> AsyncIterator[str]:

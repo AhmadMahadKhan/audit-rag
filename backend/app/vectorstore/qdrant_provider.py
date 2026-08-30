@@ -36,10 +36,16 @@ class QdrantProvider(VectorStoreProvider):
         except Exception as e:
             logger.warning("qdrant_ensure_collection_failed", collection=name, error=str(e))
 
+
     async def upsert(self, collection: str, points: list[dict]):
         qdrant_points = [
-            models.PointStruct(id=p["id"], vector=p["vector"], payload=p["payload"])
-            for p in points if p.get("vector")
+            models.PointStruct(
+                id=p["id"],
+                vector=p["vector"],
+                payload=p["payload"],
+            )
+            for p in points
+            if p.get("vector")
         ]
         if qdrant_points:
             try:
@@ -71,6 +77,7 @@ class QdrantProvider(VectorStoreProvider):
         except Exception as e:
             logger.warning("qdrant_delete_failed", collection=collection, error=str(e))
 
+  
     async def get_collection_stats(self, collection: str) -> dict:
         try:
             info = await self.client.get_collection(collection)
@@ -79,6 +86,42 @@ class QdrantProvider(VectorStoreProvider):
         except Exception:
             return {"vectors_count": 0, "points_count": 0, "status": "offline_fallback", "segments_count": 0}
 
+            if not exists:
+                return {
+                    "collection": collection,
+                    "points_count": 0,
+                    "status": "not_found",
+                    "segments_count": 0,
+                }
+
+            info = await self.client.get_collection(collection)
+
+            point_count = await self.client.count(
+                collection_name=collection,
+                exact=True,
+            )
+
+            return {
+                "collection": collection,
+                "points_count": point_count.count,
+                "status": str(info.status),
+                "segments_count": getattr(info, "segments_count", 0) or 0,
+            }
+
+        except Exception as e:
+            logger.error(
+                "qdrant_get_collection_stats_failed",
+                collection=collection,
+                error=str(e),
+            )
+
+            return {
+                "collection": collection,
+                "points_count": 0,
+                "status": "error",
+                "segments_count": 0,
+                "error": str(e),
+            }
     async def list_collections(self) -> list[str]:
         try:
             result = await self.client.get_collections()

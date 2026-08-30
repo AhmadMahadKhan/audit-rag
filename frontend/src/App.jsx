@@ -10,11 +10,23 @@ import ChatPage from './pages/ChatPage';
 import RulesPage from './pages/RulesPage';
 import EvaluationPage from './pages/EvaluationPage';
 import MonitoringPage from './pages/MonitoringPage';
+import AuditPage from './pages/AuditPage';
+import UsersPage from './pages/UsersPage';
+
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated } = useAuth();
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+  return children;
+};
+
+// Gated on the same permission the backend checks (require_permission("users.read")).
+const AdminRoute = ({ children }) => {
+  const { hasPermission } = useAuth();
+  if (!hasPermission('users.read')) {
+    return <Navigate to="/dashboard" replace />;
   }
   return children;
 };
@@ -39,9 +51,20 @@ export function App() {
             <Route path="documents" element={<DocumentsPage />} />
             <Route path="search" element={<SearchPage />} />
             <Route path="chat" element={<ChatPage />} />
+            <Route path="audit" element={<AuditPage />} />
+
             <Route path="rules" element={<RulesPage />} />
             <Route path="evaluation" element={<EvaluationPage />} />
             <Route path="monitoring" element={<MonitoringPage />} />
+
+            <Route
+              path="admin/users"
+              element={
+                <AdminRoute>
+                  <UsersPage />
+                </AdminRoute>
+              }
+            />
           </Route>
 
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

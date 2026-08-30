@@ -10,6 +10,7 @@ def get_classifier() -> BaseClassifier:
         return RuleBasedClassifier()
     if method == "ai_based":
         return AIBasedClassifier()
+        
     if method == "hybrid":
         return HybridClassifier()
     raise ValueError(f"Unknown classification method: {method}")

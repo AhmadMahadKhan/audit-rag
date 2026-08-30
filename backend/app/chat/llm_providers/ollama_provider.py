@@ -11,9 +11,9 @@ class OllamaLLMProvider(BaseLLMProvider):
 
     def __init__(self, model: str = None):
         self.model_name = model or settings.LLM_MODEL
-        headers = {"Authorization": f"Bearer {settings.OLLAMA_API_KEY}"} if settings.OLLAMA_API_KEY else None
+        headers = {"Authorization": f"Bearer {settings.OLLAMA_URL}"} if settings.OLLAMA_URL else None
         client_kwargs = {"headers": headers} if headers else None
-        self._llm = ChatOllama(model=self.model_name, base_url=settings.OLLAMA_URL, temperature=0.1, client_kwargs=client_kwargs)
+        self._llm = ChatOllama(model=self.model_name, base_url=settings.OLLAMA_URL, num_ctx=settings.LLM_MAX_CONTEXT_TOKENS, temperature=0.1, client_kwargs=client_kwargs)
 
     async def generate(self, prompt: str) -> str:
         try:

@@ -10,12 +10,13 @@ import {
   Activity, 
   Shield, 
   LogOut,
-  Sparkles
+  Sparkles,
+  Users
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export const Sidebar = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission } = useAuth();
 
   const navItems = [
     { label: 'Executive Dashboard', path: '/dashboard', icon: LayoutDashboard },
@@ -23,8 +24,10 @@ export const Sidebar = () => {
     { label: 'Audit Search', path: '/search', icon: Search },
     { label: 'AI Assistant (Chat)', path: '/chat', icon: MessageSquare },
     { label: 'Rule Engine', path: '/rules', icon: ShieldCheck },
+    { label: 'Audit', path: '/audit', icon: ShieldCheck },
     { label: 'RAG Evaluation', path: '/evaluation', icon: CheckSquare },
     { label: 'System Monitoring', path: '/monitoring', icon: Activity },
+    ...(hasPermission('users.read') ? [{ label: 'User Management', path: '/admin/users', icon: Users }] : []),
   ];
 
   return (

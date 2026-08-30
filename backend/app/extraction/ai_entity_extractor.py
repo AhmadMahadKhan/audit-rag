@@ -25,7 +25,7 @@ class AIEntityExtractor:
         if not text.strip():
             return []
         try:
-            headers = {"Authorization": f"Bearer {settings.OLLAMA_API_KEY}"} if settings.OLLAMA_API_KEY else {}
+            headers = {"Authorization": f"Bearer {settings.OLLAMA_URL}"} if settings.OLLAMA_URL else {}
             async with httpx.AsyncClient(timeout=30.0, headers=headers) as client:
                 resp = await client.post(f"{settings.OLLAMA_URL}/api/generate", json={
                     "model": self.model, "prompt": PROMPT.format(text=text), "stream": False, "format": "json",

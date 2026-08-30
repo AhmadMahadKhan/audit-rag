@@ -15,10 +15,19 @@ export const getConversationMessages = async (conversationId) => {
   return res.data;
 };
 
-export const sendMessage = async (conversationId, question, filters = null, provider = null) => {
+// export const sendMessage = async (conversationId, question, filters = null, provider = null) => {
+//   const res = await client.post(`/chat/conversations/${conversationId}/messages`, {
+//     question,
+//     filters,
+//     provider,
+//   });
+//   return res.data;
+// };
+export const sendMessage = async (conversationId, question, filters = null, documentIds = null, provider = null) => {
   const res = await client.post(`/chat/conversations/${conversationId}/messages`, {
     question,
     filters,
+    document_ids: documentIds,
     provider,
   });
   return res.data;

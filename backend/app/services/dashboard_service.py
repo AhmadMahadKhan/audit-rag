@@ -108,7 +108,7 @@ class DashboardService:
             return {"name": name, "status": "unknown", "latency_ms": None}
         t0 = time.perf_counter()
         try:
-            headers = {"Authorization": f"Bearer {settings.OLLAMA_API_KEY}"} if (name == "ollama" and settings.OLLAMA_API_KEY) else {}
+            headers = {"Authorization": f"Bearer {settings.OLLAMA_URL}"} if (name == "ollama" and settings.OLLAMA_URL) else {}
             async with httpx.AsyncClient(timeout=2.0, headers=headers) as client:
                 resp = await client.get(url)
                 latency = (time.perf_counter() - t0) * 1000

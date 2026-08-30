@@ -38,15 +38,18 @@ async def delete_conversation(conversation_id: str, db: AsyncSession = Depends(g
     await ChatRepository(db).delete_conversation(conv)
     return {"success": True}
 
+
 @router.post("/conversations/{conversation_id}/messages", response_model=MessageOut)
 async def send_message(conversation_id: str, payload: SendMessageRequest, db: AsyncSession = Depends(get_db), user=Depends(require_permission("chat.use"))):
-    return await ChatService(db).send_message(conversation_id, payload.question, user.id, payload.filters, payload.provider)
+    return await ChatService(db).send_message(
+        conversation_id, payload.question, user.id, payload.filters, payload.document_ids, payload.provider,
+    )
 
 @router.post("/conversations/{conversation_id}/stream")
 async def stream_message(conversation_id: str, payload: SendMessageRequest, db: AsyncSession = Depends(get_db), user=Depends(require_permission("chat.use"))):
     service = ChatService(db)
     return StreamingResponse(
-        service.stream_message(conversation_id, payload.question, user.id, payload.filters, payload.provider),
+        service.stream_message(conversation_id, payload.question, user.id, payload.filters, payload.document_ids, payload.provider),
         media_type="text/event-stream",
     )
 

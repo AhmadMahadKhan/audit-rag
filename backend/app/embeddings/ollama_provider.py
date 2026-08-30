@@ -22,7 +22,7 @@ class OllamaEmbeddingProvider(BaseEmbeddingProvider):
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         vectors = []
-        headers = {"Authorization": f"Bearer {settings.OLLAMA_API_KEY}"} if settings.OLLAMA_API_KEY else {}
+        headers = {"Authorization": f"Bearer {settings.OLLAMA_URL}"} if settings.OLLAMA_URL else {}
         async with httpx.AsyncClient(timeout=10.0, headers=headers) as client:
             for text in texts:
                 try:

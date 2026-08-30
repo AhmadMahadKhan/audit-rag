@@ -1,7 +1,6 @@
 
 # ===== app/observability/redaction.py =====
-"""Field-level redaction applied to every structured log line — the concrete
-implementation of Phase 20's 'Security & Privacy' requirements."""
+
 import re
 
 SENSITIVE_KEYS = {"password", "hashed_password", "token", "access_token", "refresh_token",

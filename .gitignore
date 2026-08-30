@@ -1,0 +1,37 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Database
+*.db
+
+# Logs
+*.log
+backend/logs/
+
+# Uploaded/generated documents
+backend/storage/
+backend/app/*.pdf
+backend/app/*.png
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Local vector/database storage
+qdrant_storage/
+
+
+
+
+

@@ -20,6 +20,7 @@ from app.vectorstore.factory import get_vector_store
 from app.vectorstore.collections import collection_for
 from app.embeddings.factory import get_embedding_provider
 from app.repositories.chunk_repository import ChunkRepository
+from app.repositories.document_repository import DocumentRepository
 from app.models.search import SearchLog
 from app.core.logging_config import logger
 
@@ -38,6 +39,18 @@ class RetrievalService:
         rewritten = await rewrite_query(query) if use_rewrite else query
 
         auto_filters = extract_filters(raw_query)
+        
+        # Resolve a filename hint to a concrete document_id filter.
+        filename_hint = auto_filters.pop("_filename_hint", None)
+        filename_not_found = False
+        if filename_hint:
+            doc_repo = DocumentRepository(self.db)
+            matched_doc = await doc_repo.get_by_filename(filename_hint, user_id=user_id)
+            if matched_doc:
+                auto_filters["document_id"] = matched_doc.id
+            else:
+                filename_not_found = True
+
         combined_filters = {**auto_filters, **(filters or {})}
 
         # --- Dense retrieval ---

@@ -1,10 +1,12 @@
-# ===== app/retrieval/filter_extractor.py =====
-"""Extracts structured filters (document_type, vendor, date range) from
-natural language query text, so users don't need a separate filter UI."""
 import re
 from dateutil import parser as date_parser
 
 DOC_TYPE_HINTS = {"invoice": "invoice", "contract": "contract", "receipt": "receipt", "policy": "policy"}
+
+FILENAME_PATTERN = re.compile(
+    r"\b([\w\-]+\.(?:pdf|docx|xlsx|xls|pptx|csv|html|txt|md))\b",
+    re.IGNORECASE,
+)
 
 def extract_filters(query: str) -> dict:
     filters = {}

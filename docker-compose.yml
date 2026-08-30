@@ -1,0 +1,25 @@
+services:
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: audit-rag-qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+
+  redis:
+    image: redis:7-alpine
+    container_name: audit-rag-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+
+volumes:
+  qdrant_storage:
+  redis_data:

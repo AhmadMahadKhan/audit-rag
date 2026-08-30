@@ -9,6 +9,8 @@ from app.api.v1.documents import router as documents_router
 from app.api.v1.classification import router as classification_router
 from app.api.v1.parsing import router as parsing_router
 from app.api.v1.canonical import router as canonical_router
+from app.api.v1.audit import router as audit_router
+
 from app.api.v1.metadata import router as metadata_router
 from app.api.v1.extraction import router as extraction_router
 from app.api.v1.chunks import router as chunks_router
@@ -30,6 +32,7 @@ from app.api.v1.search_ui import router as search_ui_router
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(health_router, tags=["health"])
 api_router.include_router(auth_router)
+api_router.include_router(audit_router)
 api_router.include_router(retrieval_router)
 api_router.include_router(users_router)
 api_router.include_router(dashboard_router)

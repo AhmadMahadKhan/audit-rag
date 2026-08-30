@@ -7,7 +7,8 @@ class Conversation(BaseModel):
     __tablename__ = "conversations"
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     title: Mapped[str] = mapped_column(String, default="New Conversation")
-
+    scratchpad_notes: Mapped[str] = mapped_column(String, nullable=True)  # NEW
+    active_document_ids: Mapped[list] = mapped_column(JSON, nullable=True, default=None)
 class Message(BaseModel):
     __tablename__ = "messages"
     conversation_id: Mapped[str] = mapped_column(ForeignKey("conversations.id"), index=True)
