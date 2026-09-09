@@ -1,8 +1,292 @@
-### how to run this code 
+# Audit RAG — Enterprise Document Intelligence Platform
 
-install the req.txt 
+A FastAPI + SQLAlchemy + Qdrant + Ollama platform for uploading, parsing,
+classifying, chunking, embedding, and querying enterprise documents (invoices,
+contracts, policies, financial statements, tax documents, etc.), with:
 
-### for database run this  in backend folder 
-python -m scripts.init_db 
+- **Hybrid RAG chat** — ask questions grounded in your document corpus, with
+  citations back to source pages.
+- **Document-scoped chat** — pick specific document(s) and get answers reasoned
+  directly from their full content, not just semantic-search fragments.
+- **AI Audit Agent** — a map-reduce LLM pipeline that reviews a batch of
+  documents, maintains a running memory of findings across them, and produces
+  a structured Markdown/PDF audit report.
+- **Deterministic extraction + rule engine** — facts, entities, and line items
+  extracted from documents feed a rule engine that flags risk before any LLM
+  ever sees the document.
 
-python -m scripts.seed_rbac
+---
+
+## Architecture overview
+
+```
+Upload
+  │
+  ▼
+Classification (AI-based via Ollama, or rule-based fallback)
+  │
+  ▼
+Parsing (PyMuPDF digital text + tables → Tesseract OCR → Qwen2.5-VL vision fallback)
+  │
+  ▼
+Canonicalization (unified CanonicalDocument schema)
+  │
+  ▼
+Metadata / Entity / Fact / Line-Item extraction
+  │
+  ▼
+Rule Engine (deterministic risk findings)
+  │
+  ▼
+Chunking (type-routed: invoice/contract/policy/financial-statement/generic)
+  │
+  ▼
+Embedding (Ollama nomic-embed-text, with fallback chain)
+  │
+  ▼
+Qdrant indexing (dense vectors + rich payload for filtered search)
+  │
+  ▼
+Retrieval (hybrid dense + BM25 + RRF fusion) → Reranking (cross-encoder)
+  │
+  ▼
+Chat (grounded prompt, citation extraction, response validation)
+```
+
+Two entry points bypass the retrieval/reranking pipeline by design:
+
+- **Document-scoped chat**: when the user explicitly selects one or more
+  documents (rather than asking an open-ended question), the assistant loads
+  that document's full content directly from the chunk store instead of
+  running semantic search against it. This avoids retrieval risk entirely for
+  "tell me about X.pdf" style questions.
+- **Audit Agent**: runs a map-reduce summarization pass per document
+  (batched by token budget), maintains a JSON memory object across documents
+  in a run, and synthesizes a final report — independent of the chat
+  retrieval path.
+
+---
+
+## Tech stack
+
+| Layer | Choice |
+|---|---|
+| API | FastAPI, async SQLAlchemy |
+| DB | SQLite (dev) via `aiosqlite`; async engine |
+| Migrations | Alembic (batch mode enabled for SQLite `ALTER TABLE` support) |
+| Vector store | Qdrant |
+| Embeddings | Ollama (`nomic-embed-text`), swappable via `EMBEDDING_PROVIDER` |
+| LLM | Ollama (`qwen2.5:latest` for chat/classification, `llama3.1` for the audit agent), local or cloud-hosted |
+| Reranking | `sentence-transformers` cross-encoder (`ms-marco-MiniLM-L-6-v2`) |
+| OCR | Tesseract (`pytesseract`) |
+| Vision fallback | Qwen2.5-VL via LM Studio |
+| PDF generation | `markdown` + `xhtml2pdf` (pure Python, no system binaries required) |
+| Frontend | React (Vite), Axios |
+
+---
+
+## Getting started
+
+### Backend
+
+```bash
+cd backend
+python -m venv venv
+venv\Scripts\activate        # Windows
+pip install -r requirements.txt
+```
+
+Copy `.env.example` to `.env` and set at minimum:
+
+```
+OLLAMA_URL=http://127.0.0.1:11434
+OLLAMA_API_KEY=                 # required if using a cloud-hosted Ollama endpoint
+QDRANT_URL=http://127.0.0.1:6333
+```
+
+Run database migrations:
+
+```bash
+alembic upgrade head
+```
+
+> **If you hit `no such table` or `duplicate column` errors on migrate**, your
+> `alembic_version` tracking table is probably out of sync with the actual
+> schema (this can happen if tables were ever created via `create_all()`
+> outside of Alembic). Reset with:
+> ```bash
+> python -c "
+> import asyncio
+> from sqlalchemy import text
+> from app.db.session import engine
+> async def reset():
+>     async with engine.begin() as conn:
+>         await conn.execute(text('DROP TABLE IF EXISTS alembic_version'))
+> asyncio.run(reset())
+> "
+> alembic stamp base
+> alembic upgrade head
+> ```
+> The migrations in this repo are written to be idempotent (they check for
+> existing columns/tables before creating them), so this is safe to re-run.
+
+Start Qdrant (Docker is easiest):
+
+```bash
+docker run -p 6333:6333 qdrant/qdrant
+```
+
+Pull the required Ollama models:
+
+```bash
+ollama pull qwen2.5:latest
+ollama pull nomic-embed-text:latest
+ollama pull llama3.1
+```
+
+Run the API:
+
+```bash
+uvicorn app.main:app --reload
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+---
+
+## Configuration notes
+
+All settings live in `app/core/config.py` (Pydantic `Settings`, overridable via
+`.env`). A few worth understanding:
+
+- **`LLM_MAX_CONTEXT_TOKENS`** — this is an *application-level* budget used to
+  decide how much context gets packed into a prompt. It only matters if the
+  LLM provider actually passes it to Ollama as `num_ctx`; otherwise Ollama
+  silently applies its own default (2048 tokens for most models) regardless
+  of how big a prompt you send. Check `app/chat/llm_providers/ollama_provider.py`
+  to confirm `num_ctx=settings.LLM_MAX_CONTEXT_TOKENS` is actually being
+  passed to `ChatOllama` before assuming a larger config value does anything.
+- **`OLLAMA_API_KEY`** — used to authenticate to a cloud-hosted Ollama
+  endpoint via a `Bearer` header. Several places in this codebase have
+  historically had a bug where the *URL* was sent as the bearer token instead
+  of the API key — if `/health/ready`'s `llm_provider` check or chat requests
+  are failing auth against a cloud endpoint, check for `Bearer {OLLAMA_URL}`
+  instead of `Bearer {OLLAMA_API_KEY}` in the relevant provider file(s).
+- **Hardware sizing for local Ollama**: a 7B model at Q4 quantization plus an
+  embedding model plus a cross-encoder reranker will contend for the same
+  GPU/RAM. On 8GB VRAM / 16GB RAM, `num_ctx=8192` is a reasonable ceiling;
+  pushing to 16K+ context risks OOM or silent CPU fallback (slow).
+
+---
+
+## Known architectural decisions worth knowing before you touch these areas
+
+**PDF table extraction** (`app/parsing/pdf_parser.py`) uses PyMuPDF's
+`page.find_tables()` on digital (non-scanned) pages only. Scanned/OCR/vision
+pages do not currently get table structure extracted — this is a documented
+limitation (surfaced in `ParsedDocument.warnings`), not a silent gap.
+
+**Financial fact extraction** (`app/extraction/fact_extractor.py`) is
+table-row-driven when `doc.tables` is populated (matches row labels like
+"total revenue", "net income" etc. against the adjacent numeric cell), and
+falls back to regex-over-raw-text only when no tables are available (e.g. a
+scanned financial document). Table-driven facts get higher confidence
+(0.85) than raw-text regex fallback (0.5).
+
+**Chunking is type-routed** (`app/chunking/registry.py`). Financial
+statement-family documents (`financial_statement`, `bank_statement`,
+`tax_document`, `audit_report`) use `FinancialStatementChunker`, which
+delegates tables to `TableChunker` (row-batched, header-preserved) and
+handles narrative sections (MD&A, notes, auditor's report) via
+token-windowed chunking bounded by `max_tokens` — deliberately *not* using
+`InvoiceChunker`'s "one unbounded chunk per section" pattern, since narrative
+financial-statement sections can be arbitrarily long.
+
+**Filename-scoped retrieval**: when a chat question names a specific document
+(either by typed filename or, preferably, by an explicit document picker in
+the UI), the system resolves that to a `document_id` via
+`DocumentRepository.get_by_filename()` (or the picker's own selection) rather
+than relying on Qdrant payload filtering by filename string. If a named
+document can't be resolved, retrieval returns no results and surfaces that
+explicitly rather than silently falling back to an unfiltered, whole-corpus
+search — this is intentional, to avoid answering from the wrong document.
+
+**Document-scoped chat memory**: when a chat conversation is scoped to
+specific document(s) (via `Conversation.active_document_ids`), the assistant
+maintains a short LLM-summarized scratchpad (`Conversation.scratchpad_notes`,
+capped ~150 words) across turns in that conversation. This is a lighter,
+session-only counterpart to the Audit Agent's persistent cross-document
+memory — it resets when the conversation's document scope changes and does
+not use the audit agent's compaction/severity-ranking machinery.
+
+**Audit Agent memory** (`app/audit_agent/memory.py`) hard-caps findings
+independently of the LLM's own compaction: critical/high risk flags are never
+dropped regardless of memory size; lower-priority findings and open questions
+are trimmed first. Compaction triggers above `AUDIT_MEMORY_TOKEN_LIMIT`.
+
+---
+
+## Known gaps / things to fix before production
+
+- [ ] `app/models/document.py` has no tenant/org-scoping field — only
+      `user_id`. Any multi-user-per-org sharing story needs this added before
+      filename-resolution or document-picker features can be trusted across
+      users in the same organization.
+- [ ] `alembic/versions/e773abb84b4a_*` ("baseline") is actually a duplicate
+      of the audit-tables migration, not a real schema baseline — the real
+      baseline (users, documents, conversations, etc.) has never been
+      captured as a migration; those tables exist only via `create_all()`.
+      Worth generating a proper baseline revision at some point via
+      `alembic stamp` + a full `--autogenerate` pass against a clean schema.
+- [ ] `GenericChunker`'s overlap logic carries forward exactly one prior
+      block regardless of size, rather than a token-bounded amount — imprecise
+      but not incorrect. `FinancialStatementChunker`'s narrative-section
+      handling currently inherits the same behavior.
+- [ ] `estimate_tokens()` (`app/chunking/token_utils.py`) is `len(text) // 4`
+      — a rough approximation, not a real tokenizer. Fine for chunking
+      heuristics; don't rely on it for exact budget enforcement.
+- [ ] Regenerating a chat message currently re-derives context from scratch
+      rather than reusing exactly what the original message was answered
+      against in all cases — verify this matches your expectations for
+      document-scoped conversations.
+
+---
+
+## Repository layout (backend)
+
+```
+app/
+  api/v1/            FastAPI routers (one file per resource)
+  audit_agent/        Audit run prompts, batching, memory management
+  chat/                Prompt building, citation extraction, response validation,
+                        token budgeting, document-scoped context loading, LLM providers
+  chunking/            Type-routed chunkers + registry
+  classification/      Rule-based + AI-based document type classification
+  canonical/           Unified CanonicalDocument schema
+  core/                Settings, security, logging, exceptions
+  db/                  Session/engine setup
+  embeddings/          Embedding provider abstraction
+  extraction/          Fact/entity/line-item extraction
+  models/              SQLAlchemy ORM models
+  parsing/             Format-specific parsers (PDF, OCR, vision fallback)
+  reranking/           Cross-encoder reranking + diversity/dedup logic
+  repositories/        DB access layer, one per aggregate
+  retrieval/           Query processing, filter extraction, BM25, fusion
+  rule_engine/         Deterministic risk-finding rules
+  schemas/             Pydantic request/response models
+  services/            Business logic orchestration, one per feature area
+  vectorstore/         Qdrant provider + payload building
+migrations/            Alembic revisions
+frontend/
+  src/api/             Axios API client functions, one file per resource
+  src/pages/           Top-level page components (Chat, Audit, Documents, ...)
+  src/components/      Shared UI components
+```
+
+---
